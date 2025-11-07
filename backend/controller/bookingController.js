@@ -107,18 +107,33 @@ const createBooking = async (req, res) => {
   }
 };
 
-// Placeholder functions (to be implemented)
+// Get all bookings
 const getAllBookings = async (req, res) => {
-  res.status(501).json({ success: false, message: 'Not implemented yet' });
+  try {
+    const bookings = await Booking.find()
+      .populate('room', 'name location capacity amenities')
+      .populate('user', 'name email')
+      .sort({ startTime: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: bookings.length,
+      data: bookings
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching bookings',
+      error: error.message
+    });
+  }
 };
 
 const getBookingById = async (req, res) => {
   res.status(501).json({ success: false, message: 'Not implemented yet' });
 };
 
-const updateBooking = async (req, res) => {
-  res.status(501).json({ success: false, message: 'Not implemented yet' });
-};
+
 
 const cancelBooking = async (req, res) => {
   res.status(501).json({ success: false, message: 'Not implemented yet' });
