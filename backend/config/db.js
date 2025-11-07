@@ -12,10 +12,7 @@ const connectDB = async () => {
       throw new Error('MONGODB_URI is not defined in .env file');
     }
 
-    const conn = await mongoose.connect(mongoURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    const conn = await mongoose.connect(mongoURI);
 
     console.log(`MongoDB Atlas Connected: ${conn.connection.host}`);
   } catch (error) {
