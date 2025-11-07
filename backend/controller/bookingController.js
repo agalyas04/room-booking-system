@@ -129,14 +129,105 @@ const getAllBookings = async (req, res) => {
   }
 };
 
+// Get booking by ID
 const getBookingById = async (req, res) => {
-  res.status(501).json({ success: false, message: 'Not implemented yet' });
+  try {
+    const { id } = req.params;
+
+    // Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid booking ID'
+      });
+    }
+
+    const booking = await Booking.findById(id)
+      .populate('room', 'name location capacity amenities')
+      .populate('user', 'name email');
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: booking
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching booking',
+      error: error.message
+    });
+  }
 };
 
 
 
+// Cancel booking
 const cancelBooking = async (req, res) => {
-  res.status(501).json({ success: false, message: 'Not implemented yet' });
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    // Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid booking ID'
+      });
+    }
+
+    const booking = await Booking.findById(id);
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    // Check if user owns the booking or is admin
+    if (booking.user.toString() !== userId.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied',
+        error: 'You can only cancel your own bookings'
+      });
+    }
+
+    // Check if booking is already cancelled
+    if (booking.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking is already cancelled'
+      });
+    }
+
+    // Update status to cancelled
+    booking.status = 'cancelled';
+    await booking.save();
+
+    // Populate details for response
+    await booking.populate('room', 'name location capacity amenities');
+    await booking.populate('user', 'name email');
+
+    res.status(200).json({
+      success: true,
+      message: 'Booking cancelled successfully',
+      data: booking
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error cancelling booking',
+      error: error.message
+    });
+  }
 };
 
 const getUserBookings = async (req, res) => {
