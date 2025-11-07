@@ -4,7 +4,7 @@ const User = require('../models/user');
 
 const auth = async (req, res, next) => {
   try {
-    // Get token from header
+   
     const token = req.header('Authorization')?.replace('Bearer ', '');
 
     if (!token) {
@@ -38,4 +38,6 @@ const auth = async (req, res, next) => {
 };
 
 module.exports = auth;
+
+
 

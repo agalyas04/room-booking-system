@@ -8,6 +8,16 @@ const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: 'User already exists',
+        error: 'A user with this email is already registered'
+      });
+    }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -34,6 +44,15 @@ const register = async (req, res) => {
       }
     });
   } catch (error) {
+    // Handle duplicate key error
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'User already exists',
+        error: 'A user with this email is already registered'
+      });
+    }
+
     res.status(400).json({
       success: false,
       message: 'Error registering user',
