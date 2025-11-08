@@ -23,8 +23,6 @@ exports.getNotifications = async (req, res, next) => {
       isRead: false
     });
 
-    console.log(notifications);
-
     res.status(200).json({
       success: true,
       count: notifications.length,

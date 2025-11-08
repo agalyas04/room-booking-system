@@ -1,4 +1,3 @@
-// models/booking.js - Booking model
 const mongoose = require('mongoose');
 
 const bookingSchema = new mongoose.Schema({
@@ -7,55 +6,74 @@ const bookingSchema = new mongoose.Schema({
     ref: 'Room',
     required: true
   },
-  user: {
+  bookedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
+  title: {
+    type: String,
+    required: [true, 'Please provide a booking title'],
+    trim: true
+  },
+  description: {
+    type: String,
+    trim: true
+  },
   startTime: {
     type: Date,
-    required: true
+    required: [true, 'Please provide a start time']
   },
   endTime: {
     type: Date,
-    required: true
+    required: [true, 'Please provide an end time']
   },
-  purpose: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  attendees: {
-    type: Number,
-    required: true,
-    min: 1
+  attendees: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  recurrenceGroup: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'RecurrenceGroup',
+    default: null
   },
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'cancelled', 'completed'],
-    default: 'pending'
+    enum: ['confirmed', 'cancelled', 'completed'],
+    default: 'confirmed'
   },
-  notes: {
-    type: String,
-    trim: true
+  cancelledBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  cancellationReason: {
+    type: String
+  },
+  cancelledAt: {
+    type: Date
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
-}, {
-  timestamps: true
 });
 
-// Index for efficient queries
+// Indexes for better query performance
 bookingSchema.index({ room: 1, startTime: 1, endTime: 1 });
-bookingSchema.index({ user: 1 });
+bookingSchema.index({ bookedBy: 1 });
 bookingSchema.index({ status: 1 });
 
-// Validation: endTime must be after startTime
+// Validate that end time is after start time
 bookingSchema.pre('save', function(next) {
   if (this.endTime <= this.startTime) {
     next(new Error('End time must be after start time'));
   }
+  this.updatedAt = Date.now();
   next();
 });
 
-const Booking = mongoose.model('Booking', bookingSchema);
-
-module.exports = Booking;
+module.exports = mongoose.model('Booking', bookingSchema);

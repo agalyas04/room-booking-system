@@ -15,7 +15,7 @@ exports.getBookings = async (req, res, next) => {
     
     const query = {};
     
-    // Filter by rooms
+    // Filter by room
     if (room) query.room = room;
     
     // Filter by date range
@@ -77,7 +77,7 @@ exports.getBooking = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to access this booking'
-      })
+      });
     }
 
     res.status(200).json({

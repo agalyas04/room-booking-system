@@ -116,7 +116,7 @@ exports.deleteRoom = async (req, res, next) => {
       startTime: { $gte: new Date() },
       status: 'confirmed'
     });
-    console.log(futureBookings);
+
     if (futureBookings.length > 0) {
       return res.status(400).json({
         success: false,
