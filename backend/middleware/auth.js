@@ -1,43 +1,75 @@
-// middleware/auth.js - Authentication middleware
 const jwt = require('jsonwebtoken');
-const User = require('../models/user');
+const User = require('../models/User');
 
-const auth = async (req, res, next) => {
+// Protect routes - verify JWT token
+exports.protect = async (req, res, next) => {
   try {
-   
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    let token;
+
+    // Check for token in Authorization header
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
 
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: 'No token provided'
+        message: 'Not authorized to access this route'
       });
     }
 
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    try {
+      // Verify token
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
+      // Get user from token
+      req.user = await User.findById(decoded.id);
+      
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
 
-    // Find user
-    const user = await User.findById(decoded.id);
-    if (!user) {
+      if (!req.user.isActive) {
+        return res.status(401).json({
+          success: false,
+          message: 'User account is deactivated'
+        });
+      }
+
+      next();
+    } catch (error) {
       return res.status(401).json({
         success: false,
-        message: 'User not found'
+        message: 'Invalid token'
       });
     }
-
-    // Attach user to request
-    req.user = user;
-    next();
   } catch (error) {
-    res.status(401).json({
+    return res.status(500).json({
       success: false,
-      message: 'Invalid token'
+      message: 'Server error in authentication'
     });
   }
 };
 
-module.exports = auth;
+// Grant access to specific roles
+exports.authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: `User role '${req.user.role}' is not authorized to access this route`
+      });
+    }
+    next();
+  };
+};
 
-
-
+// Generate JWT token
+exports.generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRE
+  });
+};
