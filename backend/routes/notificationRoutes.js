@@ -1,4 +1,4 @@
-const express = require('express');
+const express = require('express'); // Express framework
 const router = express.Router();
 const {
   getNotifications,

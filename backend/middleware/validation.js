@@ -1,4 +1,4 @@
-const { validationResult } = require('express-validator');
+const { validationResult } = require('express-validator'); // Validation library
 
 // Middleware to handle validation errors
 exports.handleValidationErrors = (req, res, next) => {

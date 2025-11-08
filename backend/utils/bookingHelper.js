@@ -1,3 +1,4 @@
+const moment = require('moment'); // Date utility
 const Booking = require('../models/Booking');
 
 // Check for overlapping bookings

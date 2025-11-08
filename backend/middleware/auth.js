@@ -1,4 +1,4 @@
-const jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken'); // JWT library
 const User = require('../models/User');
 
 // Protect routes - verify JWT token

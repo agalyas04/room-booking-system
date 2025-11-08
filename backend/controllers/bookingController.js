@@ -1,4 +1,4 @@
-const Booking = require('../models/Booking');
+const Booking = require('../models/Booking'); // Booking model
 const RecurrenceGroup = require('../models/RecurrenceGroup');
 const Room = require('../models/Room');
 const User = require('../models/User');

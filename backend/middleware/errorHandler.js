@@ -1,5 +1,5 @@
 // Global error handler middleware
-const errorHandler = (err, req, res, next) => {
+const errorHandler = (err, req, res, next) => { // Error handling middleware
   let error = { ...err };
   error.message = err.message;
 

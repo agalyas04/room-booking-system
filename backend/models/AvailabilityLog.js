@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require('mongoose'); // MongoDB ODM
 
 const availabilityLogSchema = new mongoose.Schema({
   room: {

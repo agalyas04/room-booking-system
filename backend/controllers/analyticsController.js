@@ -1,4 +1,4 @@
-const Booking = require('../models/Booking');
+const Booking = require('../models/Booking'); // Booking model
 const Room = require('../models/Room');
 const User = require('../models/User');
 const AvailabilityLog = require('../models/AvailabilityLog');
