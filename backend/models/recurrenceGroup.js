@@ -1,4 +1,4 @@
-// models/recurrenceGroup.js - Recurrence Group model
+// models/RecurrenceGroup.js - Recurrence group model for managing recurring bookings
 const mongoose = require('mongoose');
 
 const recurrenceGroupSchema = new mongoose.Schema({
@@ -29,7 +29,7 @@ const recurrenceGroupSchema = new mongoose.Schema({
   },
   recurrencePattern: {
     type: String,
-    enum: ['weekly'],
+    enum: ['weekly', 'daily', 'monthly'],
     default: 'weekly'
   },
   startTime: {
@@ -44,16 +44,20 @@ const recurrenceGroupSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 1,
-    max: 52 // Maximum 52 weeks (1 year)
+    max: 52
   },
   status: {
     type: String,
-    enum: ['active', 'cancelled'],
+    enum: ['active', 'cancelled', 'completed'],
     default: 'active'
   }
 }, {
   timestamps: true
 });
+
+// Index for efficient queries
+recurrenceGroupSchema.index({ user: 1, status: 1 });
+recurrenceGroupSchema.index({ room: 1, startTime: 1 });
 
 const RecurrenceGroup = mongoose.model('RecurrenceGroup', recurrenceGroupSchema);
 
