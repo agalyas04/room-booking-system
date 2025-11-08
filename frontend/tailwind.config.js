@@ -1,4 +1,5 @@
 /** @type {import('tailwindcss').Config} */
+// Tailwind CSS configuration
 export default {
   darkMode: 'class', // Enable dark mode with class strategy
   content: [
