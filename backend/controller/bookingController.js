@@ -15,7 +15,7 @@ exports.getBookings = async (req, res, next) => {
     
     const query = {};
     
-    // Filter by room
+    // Filter by rooms
     if (room) query.room = room;
     
     // Filter by date range

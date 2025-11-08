@@ -173,7 +173,6 @@ exports.updateProfile = async (req, res, next) => {
       });
     }
 
-    // Update fields
     if (name) user.name = name;
     if (department) user.department = department;
     if (phoneNumber) user.phoneNumber = phoneNumber;
