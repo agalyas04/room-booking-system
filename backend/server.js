@@ -20,9 +20,11 @@ app.use(express.urlencoded({ extended: true }));
 const roomRoutes = require('./routes/room');
 const authRoutes = require('./routes/auth');
 const bookingRoutes = require('./routes/booking');
+const adminRoutes = require('./routes/admin');
 app.use('/api/rooms', roomRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Start server
 app.listen(PORT, () => {
