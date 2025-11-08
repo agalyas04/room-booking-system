@@ -1,73 +1,58 @@
-// controller/notificationController.js - Notification controller
-const Notification = require('../models/notification');
-const mongoose = require('mongoose');
+const Notification = require('../models/Notification');
 
-// Get all notifications for current user
-const getUserNotifications = async (req, res) => {
+// @desc    Get user notifications
+// @route   GET /api/notifications
+// @access  Private
+exports.getNotifications = async (req, res, next) => {
   try {
-    const userId = req.user._id;
+    const { unreadOnly } = req.query;
+    
+    const query = { user: req.user._id };
+    if (unreadOnly === 'true') {
+      query.isRead = false;
+    }
 
-    const notifications = await Notification.find({ user: userId })
-      .populate('booking', 'room startTime endTime purpose')
-      .sort({ createdAt: -1 });
+    const notifications = await Notification.find(query)
+      .populate('booking', 'title startTime endTime')
+      .populate('room', 'name location')
+      .sort('-createdAt')
+      .limit(50);
+
+    const unreadCount = await Notification.countDocuments({
+      user: req.user._id,
+      isRead: false
+    });
 
     res.status(200).json({
       success: true,
       count: notifications.length,
+      unreadCount,
       data: notifications
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching notifications',
-      error: error.message
-    });
+    next(error);
   }
 };
 
-// Get unread notifications count
-const getUnreadCount = async (req, res) => {
+// @desc    Mark notification as read
+// @route   PUT /api/notifications/:id/read
+// @access  Private
+exports.markAsRead = async (req, res, next) => {
   try {
-    const userId = req.user._id;
-
-    const count = await Notification.countDocuments({ 
-      user: userId, 
-      isRead: false 
-    });
-
-    res.status(200).json({
-      success: true,
-      unreadCount: count
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching unread count',
-      error: error.message
-    });
-  }
-};
-
-// Mark notification as read
-const markAsRead = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user._id;
-
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid notification ID'
-      });
-    }
-
-    const notification = await Notification.findOne({ _id: id, user: userId });
+    const notification = await Notification.findById(req.params.id);
 
     if (!notification) {
       return res.status(404).json({
         success: false,
         message: 'Notification not found'
+      });
+    }
+
+    // Check authorization
+    if (notification.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to access this notification'
       });
     }
 
@@ -80,56 +65,35 @@ const markAsRead = async (req, res) => {
       data: notification
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error marking notification as read',
-      error: error.message
-    });
+    next(error);
   }
 };
 
-// Mark all notifications as read
-const markAllAsRead = async (req, res) => {
+// @desc    Mark all notifications as read
+// @route   PUT /api/notifications/read-all
+// @access  Private
+exports.markAllAsRead = async (req, res, next) => {
   try {
-    const userId = req.user._id;
-
-    const result = await Notification.updateMany(
-      { user: userId, isRead: false },
+    await Notification.updateMany(
+      { user: req.user._id, isRead: false },
       { isRead: true }
     );
 
     res.status(200).json({
       success: true,
-      message: 'All notifications marked as read',
-      updatedCount: result.modifiedCount
+      message: 'All notifications marked as read'
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error marking all notifications as read',
-      error: error.message
-    });
+    next(error);
   }
 };
 
-// Delete notification
-const deleteNotification = async (req, res) => {
+// @desc    Delete notification
+// @route   DELETE /api/notifications/:id
+// @access  Private
+exports.deleteNotification = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const userId = req.user._id;
-
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid notification ID'
-      });
-    }
-
-    const notification = await Notification.findOneAndDelete({ 
-      _id: id, 
-      user: userId 
-    });
+    const notification = await Notification.findById(req.params.id);
 
     if (!notification) {
       return res.status(404).json({
@@ -138,23 +102,21 @@ const deleteNotification = async (req, res) => {
       });
     }
 
+    // Check authorization
+    if (notification.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this notification'
+      });
+    }
+
+    await notification.deleteOne();
+
     res.status(200).json({
       success: true,
-      message: 'Notification deleted successfully'
+      message: 'Notification deleted'
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error deleting notification',
-      error: error.message
-    });
+    next(error);
   }
-};
-
-module.exports = {
-  getUserNotifications,
-  getUnreadCount,
-  markAsRead,
-  markAllAsRead,
-  deleteNotification
 };

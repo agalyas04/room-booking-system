@@ -1,97 +1,223 @@
-// controller/bookingController.js - Booking controller
-const Booking = require('../models/booking');
-const Room = require('../models/room');
-const mongoose = require('mongoose');
+const Booking = require('../models/Booking');
+const RecurrenceGroup = require('../models/RecurrenceGroup');
+const Room = require('../models/Room');
+const User = require('../models/User');
+const Notification = require('../models/Notification');
+const { checkOverlap, generateRecurringDates, combineDateAndTime } = require('../utils/bookingHelper');
+const { sendEmail, bookingCreatedEmail, bookingCancelledEmail } = require('../utils/emailService');
 
-// Create new booking
-const createBooking = async (req, res) => {
+// @desc    Get all bookings
+// @route   GET /api/bookings
+// @access  Private
+exports.getBookings = async (req, res, next) => {
   try {
-    const { room, startTime, endTime, purpose, attendees, notes } = req.body;
-    const userId = req.user._id;
+    const { room, startDate, endDate, status } = req.query;
+    
+    const query = {};
+    
+    // Filter by room
+    if (room) query.room = room;
+    
+    // Filter by date range
+    if (startDate || endDate) {
+      query.startTime = {};
+      if (startDate) query.startTime.$gte = new Date(startDate);
+      if (endDate) query.startTime.$lte = new Date(endDate);
+    }
+    
+    // Filter by status
+    if (status) query.status = status;
+    
+    // Non-admin users can only see their own bookings or bookings they're attending
+    if (req.user.role !== 'admin') {
+      query.$or = [
+        { bookedBy: req.user._id },
+        { attendees: req.user._id }
+      ];
+    }
 
-    // Validate required fields
-    if (!room || !startTime || !endTime || !purpose || !attendees) {
-      return res.status(400).json({
+    const bookings = await Booking.find(query)
+      .populate('room', 'name location capacity')
+      .populate('bookedBy', 'name email')
+      .populate('attendees', 'name email')
+      .sort('-startTime');
+
+    res.status(200).json({
+      success: true,
+      count: bookings.length,
+      data: bookings
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get single booking
+// @route   GET /api/bookings/:id
+// @access  Private
+exports.getBooking = async (req, res, next) => {
+  try {
+    const booking = await Booking.findById(req.params.id)
+      .populate('room', 'name location capacity amenities')
+      .populate('bookedBy', 'name email department')
+      .populate('attendees', 'name email')
+      .populate('recurrenceGroup');
+
+    if (!booking) {
+      return res.status(404).json({
         success: false,
-        message: 'Missing required fields',
-        error: 'Room, startTime, endTime, purpose, and attendees are required'
+        message: 'Booking not found'
       });
     }
 
-    // Validate time
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-
-    if (end <= start) {
-      return res.status(400).json({
+    // Check access rights
+    if (req.user.role !== 'admin' && 
+        booking.bookedBy._id.toString() !== req.user._id.toString() &&
+        !booking.attendees.some(a => a._id.toString() === req.user._id.toString())) {
+      return res.status(403).json({
         success: false,
-        message: 'Invalid time range',
-        error: 'End time must be after start time'
+        message: 'Not authorized to access this booking'
       });
     }
 
-    if (start < new Date()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid start time',
-        error: 'Cannot book in the past'
-      });
-    }
+    res.status(200).json({
+      success: true,
+      data: booking
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
-    // Check if room exists
-    const roomData = await Room.findById(room);
-    if (!roomData) {
+// @desc    Create booking
+// @route   POST /api/bookings
+// @access  Private
+exports.createBooking = async (req, res, next) => {
+  try {
+    const { room, title, description, startTime, endTime, attendees, isRecurring, recurrenceEndDate } = req.body;
+
+    // Verify room exists
+    const roomExists = await Room.findById(room);
+    if (!roomExists) {
       return res.status(404).json({
         success: false,
         message: 'Room not found'
       });
     }
 
-    // Validate attendees don't exceed room capacity
-    if (attendees > roomData.capacity) {
+    // Check for overlapping bookings
+    const hasOverlap = await checkOverlap(room, new Date(startTime), new Date(endTime));
+    if (hasOverlap) {
       return res.status(400).json({
         success: false,
-        message: 'Attendees exceed room capacity',
-        error: `Room capacity is ${roomData.capacity}, but ${attendees} attendees requested`
+        message: 'Room is already booked for this time slot'
       });
     }
 
-    // Check for overlapping bookings
-    const overlappingBooking = await Booking.findOne({
-      room: room,
-      status: { $nin: ['cancelled'] },
-      $or: [
-        // New booking starts during existing booking
-        { startTime: { $lte: start }, endTime: { $gt: start } },
-        // New booking ends during existing booking
-        { startTime: { $lt: end }, endTime: { $gte: end } },
-        // New booking completely contains existing booking
-        { startTime: { $gte: start }, endTime: { $lte: end } }
-      ]
-    });
+    // Handle recurring booking
+    if (isRecurring && recurrenceEndDate) {
+      const startDateTime = new Date(startTime);
+      const endDateTime = new Date(endTime);
+      const dayOfWeek = startDateTime.getDay();
+      
+      // Extract time components
+      const baseStartTime = `${startDateTime.getHours()}:${startDateTime.getMinutes().toString().padStart(2, '0')}`;
+      const baseEndTime = `${endDateTime.getHours()}:${endDateTime.getMinutes().toString().padStart(2, '0')}`;
 
-    if (overlappingBooking) {
-      return res.status(409).json({
-        success: false,
-        message: 'Room is not available',
-        error: 'This room is already booked for the selected time slot'
+      // Create recurrence group
+      const recurrenceGroup = await RecurrenceGroup.create({
+        createdBy: req.user._id,
+        room,
+        recurrencePattern: 'weekly',
+        dayOfWeek,
+        startDate: startDateTime,
+        endDate: new Date(recurrenceEndDate),
+        baseStartTime,
+        baseEndTime,
+        title,
+        description
+      });
+
+      // Generate all recurring dates
+      const recurringDates = generateRecurringDates(startDateTime, new Date(recurrenceEndDate), dayOfWeek);
+      
+      const createdBookings = [];
+      const failedDates = [];
+
+      for (const date of recurringDates) {
+        const bookingStart = combineDateAndTime(date, baseStartTime);
+        const bookingEnd = combineDateAndTime(date, baseEndTime);
+
+        // Check for overlap
+        const overlap = await checkOverlap(room, bookingStart, bookingEnd);
+        if (!overlap) {
+          const booking = await Booking.create({
+            room,
+            bookedBy: req.user._id,
+            title,
+            description,
+            startTime: bookingStart,
+            endTime: bookingEnd,
+            attendees: attendees || [],
+            recurrenceGroup: recurrenceGroup._id
+          });
+          createdBookings.push(booking);
+        } else {
+          failedDates.push(date);
+        }
+      }
+
+      // Send notification
+      await Notification.create({
+        user: req.user._id,
+        type: 'booking_created',
+        title: 'Recurring Booking Created',
+        message: `Your recurring booking for ${title} has been created with ${createdBookings.length} occurrences.`,
+        room
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: 'Recurring booking created successfully',
+        data: {
+          recurrenceGroup,
+          createdBookings: createdBookings.length,
+          failedDates: failedDates.length
+        }
       });
     }
 
-    // Create booking
+    // Create single booking
     const booking = await Booking.create({
       room,
-      user: userId,
-      startTime: start,
-      endTime: end,
-      purpose,
-      attendees,
-      notes: notes || ''
+      bookedBy: req.user._id,
+      title,
+      description,
+      startTime: new Date(startTime),
+      endTime: new Date(endTime),
+      attendees: attendees || []
     });
 
-    // Populate room and user details
-    await booking.populate('room', 'name location capacity amenities');
-    await booking.populate('user', 'name email');
+    await booking.populate('room bookedBy attendees');
+
+    // Create notification
+    await Notification.create({
+      user: req.user._id,
+      type: 'booking_created',
+      title: 'Booking Created',
+      message: `Your booking for ${booking.title} has been confirmed.`,
+      booking: booking._id,
+      room: booking.room._id
+    });
+
+    // Send email notification (async, don't wait)
+    if (process.env.EMAIL_USER) {
+      sendEmail({
+        email: req.user.email,
+        subject: 'Booking Confirmation - Room Booking Lite',
+        html: bookingCreatedEmail(booking, roomExists, req.user)
+      }).catch(err => console.error('Email error:', err));
+    }
 
     res.status(201).json({
       success: true,
@@ -99,52 +225,16 @@ const createBooking = async (req, res) => {
       data: booking
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error creating booking',
-      error: error.message
-    });
+    next(error);
   }
 };
 
-// Get all bookings
-const getAllBookings = async (req, res) => {
+// @desc    Update booking
+// @route   PUT /api/bookings/:id
+// @access  Private
+exports.updateBooking = async (req, res, next) => {
   try {
-    const bookings = await Booking.find()
-      .populate('room', 'name location capacity amenities')
-      .populate('user', 'name email')
-      .sort({ startTime: -1 });
-
-    res.status(200).json({
-      success: true,
-      count: bookings.length,
-      data: bookings
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching bookings',
-      error: error.message
-    });
-  }
-};
-
-// Get booking by ID
-const getBookingById = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid booking ID'
-      });
-    }
-
-    const booking = await Booking.findById(id)
-      .populate('room', 'name location capacity amenities')
-      .populate('user', 'name email');
+    let booking = await Booking.findById(req.params.id);
 
     if (!booking) {
       return res.status(404).json({
@@ -153,127 +243,39 @@ const getBookingById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
-      success: true,
-      data: booking
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching booking',
-      error: error.message
-    });
-  }
-};
-
-// Update booking
-const updateBooking = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { startTime, endTime, purpose, attendees, notes } = req.body;
-    const userId = req.user._id;
-
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid booking ID'
-      });
-    }
-
-    const booking = await Booking.findById(id);
-
-    if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: 'Booking not found'
-      });
-    }
-
-    // Check if user owns the booking or is admin
-    if (booking.user.toString() !== userId.toString() && req.user.role !== 'admin') {
+    // Check authorization
+    if (req.user.role !== 'admin' && booking.bookedBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied',
-        error: 'You can only update your own bookings'
+        message: 'Not authorized to update this booking'
       });
     }
 
-    // Check if booking is cancelled
-    if (booking.status === 'cancelled') {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot update cancelled booking'
-      });
-    }
+    const { startTime, endTime, room } = req.body;
 
-    // Validate time if provided
-    if (startTime || endTime) {
-      const start = startTime ? new Date(startTime) : booking.startTime;
-      const end = endTime ? new Date(endTime) : booking.endTime;
+    // If time or room is being changed, check for overlaps
+    if (startTime || endTime || room) {
+      const newStartTime = startTime ? new Date(startTime) : booking.startTime;
+      const newEndTime = endTime ? new Date(endTime) : booking.endTime;
+      const newRoom = room || booking.room;
 
-      if (end <= start) {
+      const hasOverlap = await checkOverlap(newRoom, newStartTime, newEndTime, booking._id);
+      if (hasOverlap) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid time range',
-          error: 'End time must be after start time'
+          message: 'Room is already booked for this time slot'
         });
       }
-
-      if (start < new Date()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid start time',
-          error: 'Cannot book in the past'
-        });
-      }
-
-      // Check for overlapping bookings (excluding current booking)
-      const overlappingBooking = await Booking.findOne({
-        _id: { $ne: id },
-        room: booking.room,
-        status: { $nin: ['cancelled'] },
-        $or: [
-          { startTime: { $lte: start }, endTime: { $gt: start } },
-          { startTime: { $lt: end }, endTime: { $gte: end } },
-          { startTime: { $gte: start }, endTime: { $lte: end } }
-        ]
-      });
-
-      if (overlappingBooking) {
-        return res.status(409).json({
-          success: false,
-          message: 'Room is not available',
-          error: 'This room is already booked for the selected time slot'
-        });
-      }
-
-      booking.startTime = start;
-      booking.endTime = end;
     }
 
-    // Validate attendees if provided
-    if (attendees) {
-      const roomData = await Room.findById(booking.room);
-      if (attendees > roomData.capacity) {
-        return res.status(400).json({
-          success: false,
-          message: 'Attendees exceed room capacity',
-          error: `Room capacity is ${roomData.capacity}, but ${attendees} attendees requested`
-        });
+    booking = await Booking.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      {
+        new: true,
+        runValidators: true
       }
-      booking.attendees = attendees;
-    }
-
-    // Update other fields if provided
-    if (purpose) booking.purpose = purpose;
-    if (notes !== undefined) booking.notes = notes;
-
-    await booking.save();
-
-    // Populate details for response
-    await booking.populate('room', 'name location capacity amenities');
-    await booking.populate('user', 'name email');
+    ).populate('room bookedBy attendees');
 
     res.status(200).json({
       success: true,
@@ -281,29 +283,16 @@ const updateBooking = async (req, res) => {
       data: booking
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error updating booking',
-      error: error.message
-    });
+    next(error);
   }
 };
 
-// Cancel booking
-const cancelBooking = async (req, res) => {
+// @desc    Cancel booking
+// @route   PATCH /api/bookings/:id/cancel
+// @access  Private
+exports.cancelBooking = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const userId = req.user._id;
-
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid booking ID'
-      });
-    }
-
-    const booking = await Booking.findById(id);
+    const booking = await Booking.findById(req.params.id).populate('room bookedBy');
 
     if (!booking) {
       return res.status(404).json({
@@ -312,30 +301,40 @@ const cancelBooking = async (req, res) => {
       });
     }
 
-    // Check if user owns the booking or is admin
-    if (booking.user.toString() !== userId.toString() && req.user.role !== 'admin') {
+    // Check authorization (own booking or admin)
+    if (req.user.role !== 'admin' && booking.bookedBy._id.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied',
-        error: 'You can only cancel your own bookings'
+        message: 'Not authorized to cancel this booking'
       });
     }
 
-    // Check if booking is already cancelled
-    if (booking.status === 'cancelled') {
-      return res.status(400).json({
-        success: false,
-        message: 'Booking is already cancelled'
-      });
-    }
-
-    // Update status to cancelled
     booking.status = 'cancelled';
+    booking.cancelledBy = req.user._id;
+    booking.cancelledAt = Date.now();
+    booking.cancellationReason = req.body.cancellationReason || req.body.reason || '';
+    
     await booking.save();
 
-    // Populate details for response
-    await booking.populate('room', 'name location capacity amenities');
-    await booking.populate('user', 'name email');
+    // Create notification
+    await Notification.create({
+      user: booking.bookedBy._id,
+      type: req.user.role === 'admin' ? 'admin_override' : 'booking_cancelled',
+      title: 'Booking Cancelled',
+      message: `Your booking for ${booking.title} has been cancelled.`,
+      booking: booking._id,
+      room: booking.room._id
+    });
+
+    // Send email notification
+    if (process.env.EMAIL_USER) {
+      const user = await User.findById(booking.bookedBy._id);
+      sendEmail({
+        email: user.email,
+        subject: 'Booking Cancelled - Room Booking Lite',
+        html: bookingCancelledEmail(booking, booking.room, user)
+      }).catch(err => console.error('Email error:', err));
+    }
 
     res.status(200).json({
       success: true,
@@ -343,22 +342,35 @@ const cancelBooking = async (req, res) => {
       data: booking
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error cancelling booking',
-      error: error.message
-    });
+    next(error);
   }
 };
 
-// Get current user's bookings
-const getUserBookings = async (req, res) => {
+// @desc    Get my bookings
+// @route   GET /api/bookings/my-bookings
+// @access  Private
+exports.getMyBookings = async (req, res, next) => {
   try {
-    const userId = req.user._id;
+    const { upcoming } = req.query;
+    
+    const query = {
+      $or: [
+        { bookedBy: req.user._id },
+        { attendees: req.user._id }
+      ]
+    };
 
-    const bookings = await Booking.find({ user: userId })
-      .populate('room', 'name location capacity amenities')
-      .sort({ startTime: -1 });
+    if (upcoming === 'true') {
+      query.startTime = { $gte: new Date() };
+      query.status = 'confirmed';
+    }
+
+    const bookings = await Booking.find(query)
+      .populate('room', 'name location capacity')
+      .populate('bookedBy', 'name email')
+      .populate('attendees', 'name email')
+      .populate('recurrenceGroup')
+      .sort('-createdAt');
 
     res.status(200).json({
       success: true,
@@ -366,65 +378,6 @@ const getUserBookings = async (req, res) => {
       data: bookings
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching user bookings',
-      error: error.message
-    });
+    next(error);
   }
-};
-
-// Get bookings for a specific room
-const getRoomBookings = async (req, res) => {
-  try {
-    const { roomId } = req.params;
-
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(roomId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid room ID'
-      });
-    }
-
-    // Check if room exists
-    const room = await Room.findById(roomId);
-    if (!room) {
-      return res.status(404).json({
-        success: false,
-        message: 'Room not found'
-      });
-    }
-
-    const bookings = await Booking.find({ room: roomId })
-      .populate('user', 'name email')
-      .sort({ startTime: 1 });
-
-    res.status(200).json({
-      success: true,
-      count: bookings.length,
-      room: {
-        id: room._id,
-        name: room.name,
-        location: room.location
-      },
-      data: bookings
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching room bookings',
-      error: error.message
-    });
-  }
-};
-
-module.exports = {
-  createBooking,
-  getAllBookings,
-  getBookingById,
-  updateBooking,
-  cancelBooking,
-  getUserBookings,
-  getRoomBookings
 };
