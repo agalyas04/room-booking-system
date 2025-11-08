@@ -178,7 +178,7 @@ exports.updateProfile = async (req, res, next) => {
     if (phoneNumber) user.phoneNumber = phoneNumber;
     if (profilePicture !== undefined) user.profilePicture = profilePicture;
 
-    await user.save();
+    await user.save()
 
     res.status(200).json({
       success: true,
@@ -194,7 +194,7 @@ exports.updateProfile = async (req, res, next) => {
         avatar: user.avatar,
         displayPicture: user.displayPicture
       }
-    });
+    })
   } catch (error) {
     next(error);
   }

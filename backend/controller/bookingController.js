@@ -77,7 +77,7 @@ exports.getBooking = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to access this booking'
-      });
+      })
     }
 
     res.status(200).json({

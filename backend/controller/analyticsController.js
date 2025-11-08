@@ -399,7 +399,7 @@ exports.getRoomUtilization = async (req, res, next) => {
           totalBookings: bookings.length,
           totalBookedHours: (totalBookedMinutes / 60).toFixed(2),
           utilizationRate: parseFloat(utilizationRate)
-        };
+        }
       })
     );
 
