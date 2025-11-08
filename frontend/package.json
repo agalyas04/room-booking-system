@@ -1,5 +1,6 @@
 {
   "name": "room-booking-lite-client",
+  "_comment": "Room Booking System Frontend",
   "version": "1.0.0",
   "private": true,
   "dependencies": {
