@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // React hooks
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Clock, Users, TrendingUp } from 'lucide-react';
 import Navbar from '../components/Navbar';

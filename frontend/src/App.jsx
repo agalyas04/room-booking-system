@@ -119,7 +119,7 @@ function App() {
         </SocketProvider>
       </AuthProvider>
     </ThemeProvider>
-  );
+  ) ;
 }
 
 export default App;
