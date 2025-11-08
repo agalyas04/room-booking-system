@@ -1,8 +1,7 @@
-// models/RecurrenceGroup.js - Recurrence group model for managing recurring bookings
 const mongoose = require('mongoose');
 
 const recurrenceGroupSchema = new mongoose.Schema({
-  user: {
+  createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
@@ -12,53 +11,48 @@ const recurrenceGroupSchema = new mongoose.Schema({
     ref: 'Room',
     required: true
   },
-  purpose: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  attendees: {
-    type: Number,
-    required: true,
-    min: 1
-  },
-  notes: {
-    type: String,
-    trim: true,
-    default: ''
-  },
   recurrencePattern: {
     type: String,
-    enum: ['weekly', 'daily', 'monthly'],
+    enum: ['weekly'],
     default: 'weekly'
   },
-  startTime: {
-    type: Date,
-    required: true
-  },
-  endTime: {
-    type: Date,
-    required: true
-  },
-  occurrences: {
+  dayOfWeek: {
     type: Number,
-    required: true,
-    min: 1,
-    max: 52
+    min: 0,
+    max: 6,
+    required: true // 0 = Sunday, 1 = Monday, etc.
   },
-  status: {
+  startDate: {
+    type: Date,
+    required: true
+  },
+  endDate: {
+    type: Date,
+    required: true
+  },
+  baseStartTime: {
     type: String,
-    enum: ['active', 'cancelled', 'completed'],
-    default: 'active'
+    required: true // Format: "HH:mm"
+  },
+  baseEndTime: {
+    type: String,
+    required: true // Format: "HH:mm"
+  },
+  title: {
+    type: String,
+    required: true
+  },
+  description: {
+    type: String
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
-}, {
-  timestamps: true
 });
 
-// Index for efficient queries
-recurrenceGroupSchema.index({ user: 1, status: 1 });
-recurrenceGroupSchema.index({ room: 1, startTime: 1 });
-
-const RecurrenceGroup = mongoose.model('RecurrenceGroup', recurrenceGroupSchema);
-
-module.exports = RecurrenceGroup;
+module.exports = mongoose.model('RecurrenceGroup', recurrenceGroupSchema);
