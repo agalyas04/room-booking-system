@@ -226,13 +226,34 @@ const RoomDetails = () => {
     });
   };
 
-  const getTodayBookings = () => {
+  const getSelectedDateBookings = () => {
     if (!room || !room.bookings) return [];
-    const today = new Date().toISOString().split('T')[0];
+    
+    // Use selected date from form, fallback to today if no date selected
+    const selectedDate = formData.date || new Date().toISOString().split('T')[0];
+    
     return room.bookings.filter(booking => {
       const bookingDate = new Date(booking.startTime).toISOString().split('T')[0];
-      return bookingDate === today && booking.status === 'confirmed';
+      return bookingDate === selectedDate && booking.status === 'confirmed';
     }).sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+  };
+
+  const getScheduleTitle = () => {
+    if (!formData.date) return "Today's Schedule";
+    
+    const selectedDateStr = formData.date; // YYYY-MM-DD format
+    const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    if (selectedDateStr === todayStr) {
+      return "Today's Schedule";
+    } else {
+      const selectedDate = new Date(formData.date + 'T00:00:00'); // Avoid timezone issues
+      return `Schedule for ${selectedDate.toLocaleDateString('en-US', { 
+        weekday: 'short', 
+        month: 'short', 
+        day: 'numeric' 
+      })}`;
+    }
   };
 
   if (loading) {
@@ -259,7 +280,7 @@ const RoomDetails = () => {
     );
   }
 
-  const todayBookings = getTodayBookings();
+  const selectedDateBookings = getSelectedDateBookings();
   const minDate = new Date().toISOString().split('T')[0];
   const maxDate = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0];
 
@@ -324,14 +345,16 @@ const RoomDetails = () => {
                     </div>
                   )}
 
-                  {/* Today's Schedule */}
-                  <div className="mt-6 pt-6 border-t">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-3">Today's Schedule</h3>
-                    {todayBookings.length === 0 ? (
-                      <p className="text-sm text-gray-500">No bookings today</p>
+                  {/* Selected Date Schedule */}
+                  <div key={formData.date || 'today'} className="mt-6 pt-6 border-t">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-3">{getScheduleTitle()}</h3>
+                    {selectedDateBookings.length === 0 ? (
+                      <p className="text-sm text-gray-500">
+                        {formData.date ? 'No bookings on selected date' : 'No bookings today'}
+                      </p>
                     ) : (
                       <div className="space-y-2">
-                        {todayBookings.map((booking) => (
+                        {selectedDateBookings.map((booking) => (
                           <div key={booking._id} className="text-sm p-2 bg-gray-50 rounded">
                             <div className="font-medium text-gray-900">{booking.title}</div>
                             <div className="text-gray-600 flex items-center mt-1">

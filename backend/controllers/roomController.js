@@ -39,9 +39,21 @@ exports.getRoom = async (req, res, next) => {
       });
     }
 
+    // Fetch all confirmed bookings for this room
+    const bookings = await Booking.find({
+      room: req.params.id,
+      status: 'confirmed'
+    }).populate('bookedBy', 'name email').sort('startTime');
+
+    // Add bookings to room object
+    const roomWithBookings = {
+      ...room.toObject(),
+      bookings
+    };
+
     res.status(200).json({
       success: true,
-      data: room
+      data: roomWithBookings
     });
   } catch (error) {
     next(error);

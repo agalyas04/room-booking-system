@@ -2,13 +2,17 @@ import { useState, useEffect } from 'react'; // React hooks
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import api from '../utils/api';
-import { Users, MapPin, Search } from 'lucide-react';
+import { Users, MapPin, Search, Trash2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { toast } from 'react-toastify';
 
 const Rooms = () => {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [deletingRoom, setDeletingRoom] = useState(null);
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   useEffect(() => {
     fetchRooms();
@@ -22,6 +26,24 @@ const Rooms = () => {
       console.error('Error fetching rooms:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRemoveRoom = async (roomId, roomName) => {
+    if (!window.confirm(`Are you sure you want to delete "${roomName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingRoom(roomId);
+    try {
+      await api.delete(`/rooms/${roomId}`);
+      toast.success(`Room "${roomName}" deleted successfully`);
+      fetchRooms(); // Refresh the list
+    } catch (error) {
+      const message = error.response?.data?.message || 'Failed to delete room';
+      toast.error(message);
+    } finally {
+      setDeletingRoom(null);
     }
   };
 
@@ -95,10 +117,20 @@ const Rooms = () => {
                     )}
                     <button
                       onClick={() => navigate(`/rooms/${room._id}`)}
-                      className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+                      className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 mb-2"
                     >
                       View & Book
                     </button>
+                    {isAdmin() && (
+                      <button
+                        onClick={() => handleRemoveRoom(room._id, room.name)}
+                        disabled={deletingRoom === room._id}
+                        className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        {deletingRoom === room._id ? 'Removing...' : 'Remove'}
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
