@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // React hooks
 import Navbar from '../components/Navbar';
 import api from '../utils/api';
 import { useSocket } from '../context/SocketContext';

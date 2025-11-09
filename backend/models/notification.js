@@ -9,7 +9,7 @@ const notificationSchema = new mongoose.Schema({
   type: {
     type: String,
     enum: ['booking_created', 'booking_cancelled', 'booking_reassigned', 'booking_reminder', 'admin_override'],
-    required: true
+    required : true
   },
   title: {
     type: String,

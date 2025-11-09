@@ -14,4 +14,4 @@ router.patch('/mark-all-read', protect, markAllAsRead);
 router.patch('/:id/read', protect, markAsRead);
 router.delete('/:id', protect, deleteNotification);
 
-module.exports = router;
+module.exports  = router;

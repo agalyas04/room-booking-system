@@ -5,7 +5,7 @@ const Notification = require('../models/Notification'); // Notification model
 // @access  Private
 exports.getNotifications = async (req, res, next) => {
   try {
-    const { unreadOnly } = req.query;
+    const { unreadOnly  } = req.query;
     
     const query = { user: req.user._id };
     if (unreadOnly === 'true') {
