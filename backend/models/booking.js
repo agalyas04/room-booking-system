@@ -6,7 +6,7 @@ const bookingSchema = new mongoose.Schema({
     ref: 'Room',
     required: true
   },
-  bookedBy: {
+  bookedBy : {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true

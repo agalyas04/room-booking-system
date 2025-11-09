@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // React hooks
 import Navbar from '../components/Navbar';
 import api from '../utils/api';
 import { useSocket } from '../context/SocketContext';
@@ -143,7 +143,7 @@ const Bookings = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <Navbar />
         <div className="flex justify-center items-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -153,25 +153,25 @@ const Bookings = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Navbar />
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">My Bookings</h1>
-            <div className="text-sm text-gray-600">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Bookings</h1>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
               Total: {filteredBookings.length} booking{filteredBookings.length !== 1 ? 's' : ''}
             </div>
           </div>
 
           {/* Filters */}
-          <div className="bg-white shadow rounded-lg p-4 mb-6">
+          <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 mb-6">
             <div className="flex items-center space-x-4">
               <Filter className="h-5 w-5 text-gray-400" />
               
               <div className="flex flex-wrap gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Time</label>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Time</label>
                   <div className="flex space-x-2">
                     <button
                       onClick={() => setFilter('all')}

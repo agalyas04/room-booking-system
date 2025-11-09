@@ -34,7 +34,7 @@ router.route('/')
   .get(protect, getBookings)
   .post(protect, bookingValidation, createBooking);
 
-router.route('/:id')
+router.route('/:id' )
   .get(protect, getBooking)
   .put(protect, updateBooking);
 

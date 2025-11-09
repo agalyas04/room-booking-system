@@ -7,7 +7,7 @@ const roomSchema = new mongoose.Schema({
     unique: true,
     trim: true
   },
-  location: {
+  location:  {
     type: String,
     required: [true, 'Please provide a location'],
     trim: true

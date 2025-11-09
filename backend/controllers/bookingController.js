@@ -6,9 +6,7 @@ const Notification = require('../models/Notification');
 const { checkOverlap, generateRecurringDates, combineDateAndTime } = require('../utils/bookingHelper');
 const { sendEmail, bookingCreatedEmail, bookingCancelledEmail } = require('../utils/emailService');
 
-// @desc    Get all bookings
-// @route   GET /api/bookings
-// @access  Private
+
 exports.getBookings = async (req, res, next) => {
   try {
     const { room, startDate, endDate, status } = req.query;
