@@ -1,4 +1,4 @@
-const mongoose = require('mongoose'); // MongoDB ODM
+const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 

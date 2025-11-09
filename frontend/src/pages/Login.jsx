@@ -1,4 +1,4 @@
-import { useState } from 'react'; // React hook
+import { useState } from 'react'; // React hooks
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { DoorOpen } from 'lucide-react';

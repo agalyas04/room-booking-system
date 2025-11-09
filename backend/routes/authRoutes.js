@@ -1,4 +1,4 @@
-const express = require('express'); // Express framework for routing
+const express = require('express'); // Express framework
 const router = express.Router();
 const { body } = require('express-validator');
 const { register, login, getMe, getAllUsers, updateProfile } = require('../controllers/authController');
