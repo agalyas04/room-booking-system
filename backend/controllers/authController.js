@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs'); // Password hashing
-const User = require('../models/User');
+const User = require('../models/User'); // User model
 const { generateToken } = require('../middleware/auth');
 
 // @desc    Register user
