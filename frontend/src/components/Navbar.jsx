@@ -1,4 +1,6 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+// React hook
+import { useState } from 'react'; 
 import { useAuth } from '../context/AuthContext';
 import { Home, Calendar, Bell, BarChart3, Settings, LogOut, Users, DoorOpen, User } from 'lucide-react';
 import { useState, useEffect } from 'react';

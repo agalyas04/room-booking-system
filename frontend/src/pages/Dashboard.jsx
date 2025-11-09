@@ -8,7 +8,7 @@ import { format } from 'date-fns';
 const Dashboard = () => {
   const [stats, setStats] = useState({
     upcomingBookings: 0,
-    todayBookings: 0,
+    todayBookings: 0 ,
     totalRooms: 0
   });
   const [upcomingBookings, setUpcomingBookings] = useState([]);
