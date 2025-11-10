@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // React hooks
 import Navbar from '../components/Navbar';
-import api from '../utils/api';
+import { createRoom, updateRoom, deleteRoom, getAllRooms, toggleRoomStatus } from '../api/admin';
 import { 
   Plus, 
   Edit2, 
@@ -8,7 +8,6 @@ import {
   MapPin, 
   Users, 
   Building,
-  Search,
   X,
   Check,
   AlertCircle
@@ -17,7 +16,6 @@ import {
 const AdminRooms = () => {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingRoom, setEditingRoom] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -38,8 +36,8 @@ const AdminRooms = () => {
 
   const fetchRooms = async () => {
     try {
-      const response = await api.get('/rooms/all');
-      setRooms(response.data.data);
+      const response = await getAllRooms();
+      setRooms(response.data);
     } catch (error) {
       console.error('Error fetching rooms:', error);
     } finally {
@@ -101,10 +99,10 @@ const AdminRooms = () => {
       };
 
       if (editingRoom) {
-        await api.put(`/rooms/${editingRoom._id}`, roomData);
+        await updateRoom(editingRoom._id, roomData);
         setMessage({ type: 'success', text: 'Room updated successfully!' });
       } else {
-        await api.post('/rooms', roomData);
+        await createRoom(roomData);
         setMessage({ type: 'success', text: 'Room created successfully!' });
       }
 
@@ -127,7 +125,7 @@ const AdminRooms = () => {
     }
 
     try {
-      await api.delete(`/rooms/${id}`);
+      await deleteRoom(id);
       await fetchRooms();
       setMessage({ type: 'success', text: 'Room deleted successfully!' });
       setTimeout(() => setMessage({ type: '', text: '' }), 3000);
@@ -140,10 +138,10 @@ const AdminRooms = () => {
     }
   };
 
-  const toggleRoomStatus = async (room) => {
+  const handleToggleRoomStatus = async (room) => {
     try {
       const newStatus = !room.isActive;
-      await api.patch(`/rooms/${room._id}/status`, { isActive: newStatus });
+      await toggleRoomStatus(room._id, newStatus);
       await fetchRooms();
       setMessage({ 
         type: 'success', 
@@ -159,126 +157,132 @@ const AdminRooms = () => {
     }
   };
 
-  const filteredRooms = rooms.filter(room =>
-    room.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    room.location.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
       <Navbar />
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Manage Rooms</h1>
+      <div className="max-w-7xl mx-auto py-8 sm:px-6 lg:px-8">
+        <div className="px-4 py-8 sm:px-0">
+          {/* Header Section */}
+          <div className="text-center mb-12">
+            <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">Manage Rooms</h1>
+            <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">Create and manage your meeting rooms</p>
             <button
               onClick={openCreateModal}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+              className="inline-flex items-center px-8 py-4 border border-transparent text-lg font-semibold rounded-xl text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
             >
-              <Plus className="h-5 w-5 mr-2" />
-              Add Room
+              <Plus className="h-6 w-6 mr-3" />
+              Add New Room
             </button>
           </div>
 
           {message.text && (
-            <div className={`mb-6 p-4 rounded-md ${
-              message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+            <div className={`mb-8 p-4 rounded-xl shadow-lg ${
+              message.type === 'success' 
+                ? 'bg-green-50 text-green-800 border border-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-700' 
+                : 'bg-red-50 text-red-800 border border-red-200 dark:bg-red-900 dark:text-red-200 dark:border-red-700'
             }`}>
-              <div className="flex">
+              <div className="flex items-center justify-center">
                 {message.type === 'success' ? (
-                  <Check className="h-5 w-5 mr-2" />
+                  <Check className="h-5 w-5 mr-3" />
                 ) : (
-                  <AlertCircle className="h-5 w-5 mr-2" />
+                  <AlertCircle className="h-5 w-5 mr-3" />
                 )}
-                <span>{message.text}</span>
+                <span className="font-medium">{message.text}</span>
               </div>
             </div>
           )}
 
-          <div className="mb-6">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="text"
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                placeholder="Search rooms..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
 
           {loading ? (
             <div className="flex justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
             </div>
           ) : (
-            <div className="bg-white shadow overflow-hidden sm:rounded-md">
-              <ul className="divide-y divide-gray-200">
-                {filteredRooms.map((room) => (
-                  <li key={room._id} className="px-6 py-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-semibold text-gray-900">
-                            {room.name}
-                            {!room.isActive && (
-                              <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
-                                Inactive
-                              </span>
-                            )}
-                          </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {rooms.map((room) => (
+                <div key={room._id} className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 overflow-hidden">
+                  {/* Room Header */}
+                  <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                        {room.name}
+                      </h3>
+                      {!room.isActive && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                          Inactive
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Room Details */}
+                    <div className="space-y-2">
+                      <div className="flex items-center text-gray-600 dark:text-gray-400">
+                        <MapPin className="h-4 w-4 mr-2 text-blue-500" />
+                        <span className="text-sm">{room.location} - Floor {room.floor}</span>
+                      </div>
+                      <div className="flex items-center text-gray-600 dark:text-gray-400">
+                        <Users className="h-4 w-4 mr-2 text-green-500" />
+                        <span className="text-sm">Capacity: {room.capacity} people</span>
+                      </div>
+                      {room.amenities && room.amenities.length > 0 && (
+                        <div className="flex items-center text-gray-600 dark:text-gray-400">
+                          <Building className="h-4 w-4 mr-2 text-purple-500" />
+                          <span className="text-sm">{room.amenities.length} amenities</span>
                         </div>
-                        <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-gray-600">
-                          <div className="flex items-center">
-                            <MapPin className="h-4 w-4 mr-1" />
-                            {room.location} - Floor {room.floor}
-                          </div>
-                          <div className="flex items-center">
-                            <Users className="h-4 w-4 mr-1" />
-                            Capacity: {room.capacity}
-                          </div>
-                          {room.amenities && room.amenities.length > 0 && (
-                            <div className="flex items-center">
-                              <Building className="h-4 w-4 mr-1" />
-                              {room.amenities.length} amenities
-                            </div>
+                      )}
+                    </div>
+                    
+                    {/* Amenities List */}
+                    {room.amenities && room.amenities.length > 0 && (
+                      <div className="mt-3">
+                        <div className="flex flex-wrap gap-1">
+                          {room.amenities.slice(0, 3).map((amenity, index) => (
+                            <span key={index} className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                              {amenity}
+                            </span>
+                          ))}
+                          {room.amenities.length > 3 && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                              +{room.amenities.length - 3} more
+                            </span>
                           )}
                         </div>
                       </div>
-                      
-                      <div className="ml-4 flex items-center space-x-2">
-                        <button
-                          onClick={() => toggleRoomStatus(room)}
-                          className={`px-3 py-1 rounded text-sm font-medium ${
-                            room.isActive
-                              ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-                              : 'bg-green-100 text-green-800 hover:bg-green-200'
-                          }`}
-                        >
-                          {room.isActive ? 'Deactivate' : 'Activate'}
-                        </button>
-                        <button
-                          onClick={() => openEditModal(room)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                          title="Edit"
-                        >
-                          <Edit2 className="h-5 w-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(room._id, room.name)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-5 w-5" />
-                        </button>
-                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="p-6">
+                    <div className="flex items-center justify-between space-x-3">
+                      <button
+                        onClick={() => handleToggleRoomStatus(room)}
+                        className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                          room.isActive
+                            ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 dark:bg-yellow-900 dark:text-yellow-200'
+                            : 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900 dark:text-green-200'
+                        }`}
+                      >
+                        {room.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        onClick={() => openEditModal(room)}
+                        className="p-3 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900 rounded-lg transition-colors"
+                        title="Edit Room"
+                      >
+                        <Edit2 className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(room._id, room.name)}
+                        className="p-3 text-red-600 hover:bg-red-50 dark:hover:bg-red-900 rounded-lg transition-colors"
+                        title="Delete Room"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
                     </div>
-                  </li>
-                ))}
-              </ul>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // React hooks
 import Navbar from '../components/Navbar';
-import api from '../utils/api';
+import { getAnalytics } from '../api/admin';
 import { 
   BarChart, 
   Bar, 
@@ -53,7 +53,7 @@ const AdminAnalytics = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <Navbar />
         <div className="flex justify-center items-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -64,11 +64,11 @@ const AdminAnalytics = () => {
 
   if (!analytics) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <Navbar />
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="text-center">
-            <p className="text-red-600">Failed to load analytics</p>
+            <p className="text-gray-500 dark:text-gray-400">No analytics data available</p>
           </div>
         </div>
       </div>
@@ -76,11 +76,11 @@ const AdminAnalytics = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Navbar />
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">Analytics Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-6">Analytics Dashboard</h1>
 
           {/* Date Range Filter */}
           <div className="bg-white shadow rounded-lg p-6 mb-6">

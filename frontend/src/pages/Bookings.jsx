@@ -19,7 +19,7 @@ import {
 import { format } from 'date-fns';
 
 const Bookings = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { socket } = useSocket();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +53,9 @@ const Bookings = () => {
 
   const fetchBookings = async () => {
     try {
-      const response = await api.get('/bookings/my-bookings');
+      // Admins see all bookings, regular users see only their bookings
+      const endpoint = isAdmin() ? '/bookings' : '/bookings/my-bookings';
+      const response = await api.get(endpoint);
       setBookings(response.data.data);
     } catch (error) {
       console.error('Error fetching bookings:', error);
@@ -158,7 +160,7 @@ const Bookings = () => {
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Bookings</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{isAdmin() ? 'All Bookings' : 'My Bookings'}</h1>
             <div className="text-sm text-gray-600 dark:text-gray-400">
               Total: {filteredBookings.length} booking{filteredBookings.length !== 1 ? 's' : ''}
             </div>
