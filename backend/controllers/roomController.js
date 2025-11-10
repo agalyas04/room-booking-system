@@ -1,5 +1,6 @@
 const Room = require('../models/Room'); // Room model
 const Booking = require('../models/Booking');
+const NotificationService = require('../services/notificationService');
 
 // @desc    Get all rooms
 // @route   GET /api/rooms
@@ -66,6 +67,9 @@ exports.getRoom = async (req, res, next) => {
 exports.createRoom = async (req, res, next) => {
   try {
     const room = await Room.create(req.body);
+    
+    // Notify admins about room creation
+    await NotificationService.notifyAdminsOfRoomAction('room_created', room, req.user);
 
     res.status(201).json({
       success: true,
@@ -98,6 +102,9 @@ exports.updateRoom = async (req, res, next) => {
       });
     }
 
+    // Notify admins about room update
+    await NotificationService.notifyAdminsOfRoomAction('room_updated', room, req.user);
+    
     res.status(200).json({
       success: true,
       message: 'Room updated successfully',
@@ -136,6 +143,9 @@ exports.deleteRoom = async (req, res, next) => {
       });
     }
 
+    // Notify admins about room deletion
+    await NotificationService.notifyAdminsOfRoomAction('room_deleted', room, req.user);
+    
     await room.deleteOne();
 
     res.status(200).json({
@@ -191,6 +201,60 @@ exports.getRoomAvailability = async (req, res, next) => {
         date,
         bookings
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all rooms (admin)
+// @route   GET /api/rooms/all
+// @access  Private/Admin
+exports.getAllRooms = async (req, res, next) => {
+  try {
+    const rooms = await Room.find({}).sort('name');
+
+    res.status(200).json({
+      success: true,
+      count: rooms.length,
+      data: rooms
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Toggle room status
+// @route   PATCH /api/rooms/:id/status
+// @access  Private/Admin
+exports.toggleRoomStatus = async (req, res, next) => {
+  try {
+    const { isActive } = req.body;
+    
+    const room = await Room.findByIdAndUpdate(
+      req.params.id,
+      { isActive },
+      { new: true, runValidators: true }
+    );
+
+    if (!room) {
+      return res.status(404).json({
+        success: false,
+        message: 'Room not found'
+      });
+    }
+
+    // Notify admins about room status change
+    await NotificationService.notifyAdminsOfRoomAction(
+      'room_updated', 
+      { ...room.toObject(), statusChanged: true }, 
+      req.user
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `Room ${isActive ? 'activated' : 'deactivated'} successfully`,
+      data: room
     });
   } catch (error) {
     next(error);

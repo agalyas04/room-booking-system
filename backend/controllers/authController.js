@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs'); // Password hashing
 const User = require('../models/User');
+const NotificationService = require('../services/notificationService');
 const { generateToken } = require('../middleware/auth');
 
 // @desc    Register user
@@ -30,6 +31,11 @@ exports.register = async (req, res, next) => {
 
     // Generate token
     const token = generateToken(user._id);
+    
+    // Notify admins of new user registration
+    await NotificationService.notifyAdminsOfUserAction('user_registered', {
+      userId: user._id
+    }, user);
 
     res.status(201).json({
       success: true,
