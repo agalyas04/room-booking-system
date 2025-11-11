@@ -1,6 +1,7 @@
 const express = require('express'); // Express framework
 const router = express.Router();
 const {
+  getAnalytics,
   getDashboardAnalytics,
   getRoomUtilization,
   getTimeSlotPopularity,
@@ -13,7 +14,7 @@ const { protect, authorize } = require('../middleware/auth');
 router.use(protect, authorize('admin'));
 
 // Routes
-router.get('/', getAllAnalytics);
+router.get('/', getAnalytics);
 router.get('/dashboard', getDashboardAnalytics);
 router.get('/utilization', getRoomUtilization);
 router.get('/time-slots', getTimeSlotPopularity);

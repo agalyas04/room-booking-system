@@ -1,20 +1,27 @@
 /* Global styles */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+/* Tailwind CSS directives */
+/* stylelint-disable-next-line at-rule-no-unknown */
 @tailwind base;
+/* stylelint-disable-next-line at-rule-no-unknown */
 @tailwind components;
+/* stylelint-disable-next-line at-rule-no-unknown */
 @tailwind utilities;
 
 * {
-  margin: 0 ;
+  margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #fdf2f8;
+  color: #831843;
+  letter-spacing: -0.01em;
 }
 
 code {
@@ -29,16 +36,16 @@ code {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #fce7f3;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888;
+  background: #f9a8d4;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: #db2777;
 }
 
 /* React Calendar Styling */
@@ -48,12 +55,61 @@ code {
 }
 
 .react-calendar__tile--active {
-  background: #0ea5e9 !important;
+  background: #db2777 !important;
   color: white !important;
 }
 
 .react-calendar__tile--now {
-  background: #e0f2fe !important;
+  background: #fce7f3 !important;
+}
+
+/* Input text color fix */
+input[type="text"], 
+input[type="email"], 
+input[type="password"], 
+input[type="tel"], 
+input[type="number"],
+input[type="date"],
+input[type="time"],
+textarea, 
+select {
+  color: #111827 !important;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Placeholder text */
+input::placeholder, textarea::placeholder {
+  color: #9ca3af !important;
+  font-weight: 300;
+}
+
+/* Remove dark mode styles */
+.dark {
+  display: none;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  cursor: default;
+  user-select: none;
+}
+
+/* Buttons */
+button {
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0.025em;
+  transition: all 0.2s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+/* Links */
+a {
+  transition: all 0.2s ease;
 }
 
 /* Toast Notifications */

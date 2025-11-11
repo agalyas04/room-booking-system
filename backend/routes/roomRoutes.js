@@ -5,9 +5,10 @@ const {
   getRooms,
   getRoom,
   createRoom,
-  updateRoom,
   deleteRoom,
-  getRoomAvailability
+  getRoomAvailability,
+  getAllRooms,
+  toggleRoomStatus
 } = require('../controllers/roomController');
 const { protect, authorize } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
@@ -27,9 +28,12 @@ router.route('/')
 
 router.route('/:id')
   .get(protect, getRoom)
-  .put(protect, authorize('admin'), updateRoom)
   .delete(protect, authorize('admin'), deleteRoom);
 
 router.get('/:id/availability', protect, getRoomAvailability);
+
+// Admin-only routes
+router.get('/all', protect, authorize('admin'), getAllRooms);
+router.patch('/:id/status', protect, authorize('admin'), toggleRoomStatus);
 
 module.exports = router;

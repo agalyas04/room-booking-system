@@ -1,32 +1,22 @@
 import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
-const AdminAnalytics = () => {
+const Analytics = () => {
+  const { isAdmin } = useAuth();
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0]
-  });
 
   useEffect(() => {
     fetchAnalytics();
-  }, [dateRange]);
+  }, []);
 
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
-      console.log('Fetching analytics with params:', dateRange);
-      const response = await api.get('/analytics', {
-        params: {
-          ...dateRange,
-          _t: Date.now() // Cache buster
-        }
-      });
-      console.log('Analytics response:', response.data);
-      console.log('Room utilization data:', response.data.data?.roomUtilization);
+      const response = await api.get('/analytics');
       setAnalytics(response.data.data);
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -35,13 +25,19 @@ const AdminAnalytics = () => {
     }
   };
 
-  const handleDateChange = (e) => {
-    const { name, value } = e.target;
-    setDateRange(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
+  if (!isAdmin()) {
+    return (
+      <div className="min-h-screen bg-pink-50">
+        <Navbar />
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-16">
+          <div className="bg-white shadow-sm border border-pink-100 p-12 text-center">
+            <h1 className="text-3xl font-light text-pink-900 mb-4">access denied</h1>
+            <p className="text-pink-600">only administrators can view analytics</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -60,47 +56,13 @@ const AdminAnalytics = () => {
       
       {/* Hero Section */}
       <div className="bg-white border-b border-pink-100">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-16">
-          <h1 className="text-5xl md:text-6xl font-light text-pink-900 mb-8 tracking-tight text-center">
-            admin analytics
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-16 text-center">
+          <h1 className="text-5xl md:text-6xl font-light text-pink-900 mb-4 tracking-tight">
+            analytics
           </h1>
-          
-          {/* Date Range Filter */}
-          <div className="max-w-2xl mx-auto">
-            <div className="bg-pink-50 border border-pink-200 p-6">
-              <p className="text-sm text-pink-600 mb-4 text-center">date range</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs text-pink-600 mb-2 tracking-wide">start date</label>
-                  <input
-                    type="date"
-                    name="startDate"
-                    value={dateRange.startDate}
-                    onChange={handleDateChange}
-                    className="w-full px-4 py-3 border border-pink-200 rounded-none text-sm focus:outline-none focus:border-pink-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-pink-600 mb-2 tracking-wide">end date</label>
-                  <input
-                    type="date"
-                    name="endDate"
-                    value={dateRange.endDate}
-                    onChange={handleDateChange}
-                    className="w-full px-4 py-3 border border-pink-200 rounded-none text-sm focus:outline-none focus:border-pink-400"
-                  />
-                </div>
-              </div>
-              <div className="mt-4 text-center">
-                <button
-                  onClick={fetchAnalytics}
-                  className="px-6 py-2 bg-pink-600 text-white text-sm tracking-wide hover:bg-pink-700 transition-colors"
-                >
-                  Refresh Data
-                </button>
-              </div>
-            </div>
-          </div>
+          <p className="text-xl text-pink-600 font-light">
+            insights and metrics
+          </p>
         </div>
       </div>
 
@@ -174,30 +136,20 @@ const AdminAnalytics = () => {
                 <h3 className="text-lg font-semibold text-gray-900">Room Utilization Rates</h3>
               </div>
               <div className="space-y-4">
-                {analytics.roomUtilization.map((room, index) => (
+                {analytics.roomUtilization.slice(0, 5).map((room, index) => (
                   <div key={index}>
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm text-gray-700">{room.roomName}</span>
-                      <span className="text-sm font-semibold text-gray-900">{room.bookingPercentage}%</span>
+                      <span className="text-sm font-semibold text-gray-900">{room.utilizationRate}%</span>
                     </div>
                     <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
                       <div 
                         className="bg-green-500 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${room.bookingPercentage}%` }}
+                        style={{ width: `${room.utilizationRate}%` }}
                       ></div>
                     </div>
                   </div>
                 ))}
-                
-                {/* Total Row - Should add up to 100% */}
-                <div className="pt-4 mt-4 border-t border-pink-200">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-pink-900">Total</span>
-                    <span className="text-sm font-bold text-pink-900">
-                      {analytics.roomUtilization.reduce((sum, room) => sum + room.bookingPercentage, 0)}%
-                    </span>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -280,4 +232,4 @@ const AdminAnalytics = () => {
   );
 };
 
-export default AdminAnalytics;
+export default Analytics;

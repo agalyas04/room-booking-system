@@ -47,97 +47,108 @@ const Rooms = () => {
     }
   };
 
+
   const filteredRooms = rooms.filter(room =>
     room.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     room.location.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-pink-50">
       <Navbar />
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Available Rooms</h1>
-          </div>
+      
+      {/* Hero Section */}
+      <div className="bg-white">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-16 text-center">
+          <h1 className="text-5xl md:text-6xl font-light text-pink-900 mb-4">
+            explore rooms
+          </h1>
+          <p className="text-lg text-pink-600 font-light">
+            find the perfect space for your meeting
+          </p>
+        </div>
+      </div>
 
-          <div className="mb-6">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="text"
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                placeholder="Search rooms..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
+      <div className="max-w-7xl mx-auto px-6 lg:px-8 py-12">
+        {/* Search Bar */}
+        <div className="mb-12">
+          <div className="relative max-w-md mx-auto">
+            <input
+              type="text"
+              className="w-full px-4 py-3 border border-pink-200 rounded-none text-sm focus:outline-none focus:border-gray-400 transition-colors"
+              placeholder="search rooms..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <Search className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           </div>
+        </div>
 
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredRooms.map((room) => (
-                <div key={room._id} className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow">
-                  {room.imageUrl && (
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {filteredRooms.map((room) => (
+              <div key={room._id} className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                <div className="aspect-video bg-gray-200 relative">
+                  {room.imageUrl ? (
                     <img
                       src={room.imageUrl}
                       alt={room.name}
-                      className="w-full h-48 object-cover"
+                      className="w-full h-full object-cover"
                     />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <MapPin className="h-12 w-12" />
+                    </div>
                   )}
-                  <div className="p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{room.name}</h3>
-                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      <MapPin className="h-4 w-4 mr-1" />
-                      {room.location}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-400 mb-4">
-                      <Users className="h-4 w-4 mr-1" />
-                      Capacity: {room.capacity}
-                    </div>
+                </div>
+                <div className="p-8">
+                  <h3 className="text-2xl font-light text-pink-900 mb-2">{room.name}</h3>
+                  <p className="text-pink-600 text-sm mb-4">{room.location}</p>
+                  
+                  <div className="space-y-1 mb-4 text-sm text-pink-600">
+                    <p>capacity: {room.capacity} people</p>
                     {room.amenities && room.amenities.length > 0 && (
-                      <div className="mb-4">
-                        <div className="flex flex-wrap gap-2">
-                          {room.amenities.slice(0, 3).map((amenity, index) => (
-                            <span
-                              key={index}
-                              className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-primary-100 text-primary-800"
-                            >
-                              {amenity}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
+                      <p>amenities: {room.amenities.slice(0, 2).join(', ')}{room.amenities.length > 2 ? '...' : ''}</p>
                     )}
-                    <button
-                      onClick={() => navigate(`/rooms/${room._id}`)}
-                      className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 mb-2"
-                    >
-                      View & Book
-                    </button>
-                    {isAdmin() && (
+                  </div>
+
+                  <button
+                    onClick={() => navigate(`/rooms/${room._id}`)}
+                    className="w-full py-3 bg-pink-600 text-white text-sm tracking-wide hover:bg-pink-700 transition-colors mb-2"
+                  >
+                    view & book
+                  </button>
+                  
+                  {isAdmin() && (
+                    <div className="flex gap-2">
                       <button
                         onClick={() => handleRemoveRoom(room._id, room.name)}
                         disabled={deletingRoom === room._id}
-                        className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-1 py-3 border border-red-600 text-red-600 text-sm tracking-wide hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        {deletingRoom === room._id ? 'Removing...' : 'Remove'}
+                        <Trash2 className="h-4 w-4" />
+                        {deletingRoom === room._id ? 'removing...' : 'remove'}
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!loading && filteredRooms.length === 0 && (
+          <div className="text-center py-20">
+            <p className="text-pink-600 text-lg font-light">no rooms found</p>
+            <p className="text-gray-400 text-sm mt-2">try a different search term</p>
+          </div>
+        )}
       </div>
+
     </div>
   );
 };

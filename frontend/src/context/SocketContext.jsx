@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext } from 'react'; // React hooks
 import { io } from 'socket.io-client';
 
 const SocketContext = createContext();
@@ -20,7 +20,12 @@ export const SocketProvider = ({ children }) => {
       return;
     }
     
-    const newSocket = io(socketUrl);
+    const newSocket = io(socketUrl, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+      timeout: 20000,
+      forceNew: true
+    });
     setSocket(newSocket);
 
     return () => {

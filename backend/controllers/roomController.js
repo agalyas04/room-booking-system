@@ -1,5 +1,6 @@
 const Room = require('../models/Room'); // Room model
 const Booking = require('../models/Booking');
+const Notification = require('../models/Notification');
 const NotificationService = require('../services/notificationService');
 
 // @desc    Get all rooms
@@ -44,7 +45,9 @@ exports.getRoom = async (req, res, next) => {
     const bookings = await Booking.find({
       room: req.params.id,
       status: 'confirmed'
-    }).populate('bookedBy', 'name email').sort('startTime');
+    }).populate('bookedBy', 'name email')
+      .populate('recurrenceGroup')
+      .sort('startTime');
 
     // Add bookings to room object
     const roomWithBookings = {
@@ -81,39 +84,6 @@ exports.createRoom = async (req, res, next) => {
   }
 };
 
-// @desc    Update room
-// @route   PUT /api/rooms/:id
-// @access  Private/Admin
-exports.updateRoom = async (req, res, next) => {
-  try {
-    const room = await Room.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      {
-        new: true,
-        runValidators: true
-      }
-    );
-
-    if (!room) {
-      return res.status(404).json({
-        success: false,
-        message: 'Room not found'
-      });
-    }
-
-    // Notify admins about room update
-    await NotificationService.notifyAdminsOfRoomAction('room_updated', room, req.user);
-    
-    res.status(200).json({
-      success: true,
-      message: 'Room updated successfully',
-      data: room
-    });
-  } catch (error) {
-    next(error);
-  }
-};
 
 // @desc    Delete room
 // @route   DELETE /api/rooms/:id
@@ -129,18 +99,49 @@ exports.deleteRoom = async (req, res, next) => {
       });
     }
 
-    // Check if room has future bookings
-    const futureBookings = await Booking.find({
+    // Check if room has any bookings (future or past)
+    const allBookings = await Booking.find({
       room: req.params.id,
-      startTime: { $gte: new Date() },
       status: 'confirmed'
-    });
+    }).populate('bookedBy attendees', 'name email');
 
+    // Filter only future bookings for cancellation
+    const futureBookings = allBookings.filter(booking => 
+      new Date(booking.startTime) >= new Date()
+    );
+
+    // If there are future bookings, cancel them and notify users
     if (futureBookings.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete room with future bookings'
-      });
+      for (const booking of futureBookings) {
+        // Cancel the booking
+        booking.status = 'cancelled';
+        booking.cancelledBy = req.user._id;
+        booking.cancelledAt = Date.now();
+        booking.cancellationReason = `Room "${room.name}" has been deleted by administrator`;
+        await booking.save();
+
+        // Notify the person who booked
+        await Notification.create({
+          user: booking.bookedBy._id,
+          type: 'room_deleted',
+          title: 'Room Deleted - Booking Cancelled',
+          message: `Your booking "${booking.title}" has been cancelled because the room "${room.name}" no longer exists.`,
+          booking: booking._id
+        });
+
+        // Notify all attendees
+        if (booking.attendees && booking.attendees.length > 0) {
+          for (const attendee of booking.attendees) {
+            await Notification.create({
+              user: attendee._id,
+              type: 'room_deleted',
+              title: 'Room Deleted - Booking Cancelled',
+              message: `The booking "${booking.title}" has been cancelled because the room "${room.name}" no longer exists.`,
+              booking: booking._id
+            });
+          }
+        }
+      }
     }
 
     // Notify admins about room deletion
@@ -148,10 +149,16 @@ exports.deleteRoom = async (req, res, next) => {
     
     await room.deleteOne();
 
+    const message = futureBookings.length > 0 
+      ? `Room deleted successfully. ${futureBookings.length} future booking(s) cancelled and users notified.`
+      : 'Room deleted successfully';
+
     res.status(200).json({
       success: true,
-      message: 'Room deleted successfully',
-      data: {}
+      message: message,
+      data: {
+        cancelledBookings: futureBookings.length
+      }
     });
   } catch (error) {
     next(error);

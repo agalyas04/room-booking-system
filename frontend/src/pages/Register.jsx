@@ -2,7 +2,6 @@ import { useState } from 'react'; // React hooks
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { DoorOpen } from 'lucide-react';
-import ThemeToggle from '../components/ThemeToggle';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -45,129 +44,125 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative">
-      <div className="absolute top-4 right-4">
-        <ThemeToggle />
-      </div>
-      <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-10 rounded-xl shadow-2xl">
-        <div>
-          <div className="flex justify-center">
-            <DoorOpen className="h-16 w-16 text-primary-600 dark:text-primary-400" />
-          </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-            Create your account
+    <div className="min-h-screen bg-pink-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full">
+        <div className="text-center mb-12">
+          <h2 className="text-4xl font-light text-pink-900 mb-2">
+            Room Booking Lite
           </h2>
+          <p className="text-sm text-pink-600 tracking-wide">
+            create your account
+          </p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4">
+        
+        <div className="bg-white p-10 shadow-sm">
+          <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Full Name
+              <label htmlFor="name" className="block text-sm text-pink-700 mb-2">
+                full name
               </label>
               <input
                 id="name"
                 name="name"
                 type="text"
                 required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                className="w-full px-4 py-3 border border-pink-200 rounded-none text-sm focus:outline-none focus:border-gray-400 transition-colors"
                 value={formData.name}
                 onChange={handleChange}
               />
             </div>
             
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Email Address
+              <label htmlFor="email" className="block text-sm text-pink-700 mb-2">
+                email address
               </label>
               <input
                 id="email"
                 name="email"
                 type="email"
                 required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                className="w-full px-4 py-3 border border-pink-200 rounded-none text-sm focus:outline-none focus:border-gray-400 transition-colors"
                 value={formData.email}
                 onChange={handleChange}
               />
             </div>
 
             <div>
-              <label htmlFor="department" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Department
+              <label htmlFor="department" className="block text-sm text-pink-700 mb-2">
+                department
               </label>
               <input
                 id="department"
                 name="department"
                 type="text"
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                className="w-full px-4 py-3 border border-pink-200 rounded-none text-sm focus:outline-none focus:border-gray-400 transition-colors"
                 value={formData.department}
                 onChange={handleChange}
               />
             </div>
 
             <div>
-              <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Phone Number
+              <label htmlFor="phoneNumber" className="block text-sm text-pink-700 mb-2">
+                phone number
               </label>
               <input
                 id="phoneNumber"
                 name="phoneNumber"
                 type="tel"
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                className="w-full px-4 py-3 border border-pink-200 rounded-none text-sm focus:outline-none focus:border-gray-400 transition-colors"
                 value={formData.phoneNumber}
                 onChange={handleChange}
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Password
+              <label htmlFor="password" className="block text-sm text-pink-700 mb-2">
+                password
               </label>
               <input
                 id="password"
                 name="password"
                 type="password"
                 required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                className="w-full px-4 py-3 border border-pink-200 rounded-none text-sm focus:outline-none focus:border-gray-400 transition-colors"
                 value={formData.password}
                 onChange={handleChange}
               />
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Confirm Password
+              <label htmlFor="confirmPassword" className="block text-sm text-pink-700 mb-2">
+                confirm password
               </label>
               <input
                 id="confirmPassword"
                 name="confirmPassword"
                 type="password"
                 required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                className="w-full px-4 py-3 border border-pink-200 rounded-none text-sm focus:outline-none focus:border-gray-400 transition-colors"
                 value={formData.confirmPassword}
                 onChange={handleChange}
               />
             </div>
-          </div>
 
-          <div>
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+              className="w-full py-3 bg-pink-600 text-white text-sm tracking-wide hover:bg-pink-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6"
             >
-              {loading ? 'Creating account...' : 'Register'}
+              {loading ? 'creating account...' : 'register'}
             </button>
-          </div>
+          </form>
 
-          <div className="text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Already have an account?{' '}
-              <Link to="/login" className="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-500">
-                Sign in here
+          <div className="mt-6 text-center">
+            <p className="text-sm text-pink-600">
+              already have an account?{' '}
+              <Link to="/login" className="text-pink-900 hover:underline">
+                sign in here
               </Link>
             </p>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

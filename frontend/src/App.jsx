@@ -1,7 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'; // React Router
 import { AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
-import { ThemeProvider } from './context/ThemeContext';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -16,14 +15,14 @@ import Notifications from './pages/Notifications';
 import Profile from './pages/Profile';
 import AdminAnalytics from './pages/AdminAnalytics';
 import AdminRooms from './pages/AdminRooms';
+import Analytics from './pages/Analytics';
 
 function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <SocketProvider>
+    <AuthProvider>
+      <SocketProvider>
           <Router>
-            <div className="App min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
+            <div className="App min-h-screen bg-pink-50 text-pink-900">
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
@@ -86,7 +85,7 @@ function App() {
                   path="/admin/analytics"
                   element={
                     <ProtectedRoute adminOnly>
-                      <AdminAnalytics />
+                      <Analytics />
                     </ProtectedRoute>
                   }
                 />
@@ -116,9 +115,8 @@ function App() {
               />
             </div>
           </Router>
-        </SocketProvider>
-      </AuthProvider>
-    </ThemeProvider>
+      </SocketProvider>
+    </AuthProvider>
   ) ;
 }
 

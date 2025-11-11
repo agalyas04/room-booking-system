@@ -67,6 +67,17 @@ exports.authorize = (...roles) => {
   };
 };
 
+// Admin only middleware (alias for authorize('admin'))
+exports.adminOnly = (req, res, next) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Admin access required'
+    });
+  }
+  next();
+};
+
 // Generate JWT token
 exports.generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {

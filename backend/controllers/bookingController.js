@@ -3,7 +3,8 @@ const RecurrenceGroup = require('../models/RecurrenceGroup');
 const Room = require('../models/Room');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
-const { checkOverlap, generateRecurringDates, combineDateAndTime } = require('../utils/bookingHelper');
+const NotificationService = require('../services/notificationService');
+const { checkOverlap, checkOverlapWithRecurring, generateRecurringDates, combineDateAndTime } = require('../utils/bookingHelper');
 const { sendEmail, bookingCreatedEmail, bookingCancelledEmail } = require('../utils/emailService');
 
 
@@ -26,13 +27,7 @@ exports.getBookings = async (req, res, next) => {
     // Filter by status
     if (status) query.status = status;
     
-    // Non-admin users can only see their own bookings or bookings they're attending
-    if (req.user.role !== 'admin') {
-      query.$or = [
-        { bookedBy: req.user._id },
-        { attendees: req.user._id }
-      ];
-    }
+    // Everyone can see all bookings (removed role-based filtering)
 
     const bookings = await Booking.find(query)
       .populate('room', 'name location capacity')
@@ -94,6 +89,14 @@ exports.createBooking = async (req, res, next) => {
   try {
     const { room, title, description, startTime, endTime, attendees, isRecurring, recurrenceEndDate } = req.body;
 
+    // Validate attendees
+    if (!attendees || !Array.isArray(attendees) || attendees.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one attendee is required for the booking'
+      });
+    }
+
     // Verify room exists
     const roomExists = await Room.findById(room);
     if (!roomExists) {
@@ -103,19 +106,28 @@ exports.createBooking = async (req, res, next) => {
       });
     }
 
-    // Check for overlapping bookings
-    const hasOverlap = await checkOverlap(room, new Date(startTime), new Date(endTime));
+    // Validate attendees count doesn't exceed room capacity
+    if (attendees.length > roomExists.capacity) {
+      return res.status(400).json({
+        success: false,
+        message: `Too many attendees. Room capacity is ${roomExists.capacity} people, but ${attendees.length} attendees were selected.`
+      });
+    }
+
+    // Check for overlapping bookings (including recurring bookings)
+    const startDateTime = new Date(startTime);
+    const endDateTime = new Date(endTime);
+    
+    const hasOverlap = await checkOverlapWithRecurring(room, startDateTime, endDateTime);
     if (hasOverlap) {
       return res.status(400).json({
         success: false,
-        message: 'Room is already booked for this time slot'
+        message: 'Room is already booked for this time slot. Please choose a different time.'
       });
     }
 
     // Handle recurring booking
     if (isRecurring && recurrenceEndDate) {
-      const startDateTime = new Date(startTime);
-      const endDateTime = new Date(endTime);
       const dayOfWeek = startDateTime.getDay();
       
       // Extract time components
@@ -139,33 +151,46 @@ exports.createBooking = async (req, res, next) => {
       // Generate all recurring dates
       const recurringDates = generateRecurringDates(startDateTime, new Date(recurrenceEndDate), dayOfWeek);
       
-      const createdBookings = [];
-      const failedDates = [];
-
+      // Check ALL dates for conflicts before creating any bookings
+      const conflictDates = [];
       for (const date of recurringDates) {
         const bookingStart = combineDateAndTime(date, baseStartTime);
         const bookingEnd = combineDateAndTime(date, baseEndTime);
-
-        // Check for overlap
-        const overlap = await checkOverlap(room, bookingStart, bookingEnd);
-        if (!overlap) {
-          const booking = await Booking.create({
-            room,
-            bookedBy: req.user._id,
-            title,
-            description,
-            startTime: bookingStart,
-            endTime: bookingEnd,
-            attendees: attendees || [],
-            recurrenceGroup: recurrenceGroup._id
-          });
-          createdBookings.push(booking);
-        } else {
-          failedDates.push(date);
+        const overlap = await checkOverlapWithRecurring(room, bookingStart, bookingEnd);
+        if (overlap) {
+          conflictDates.push(date.toDateString());
         }
       }
 
-      // Send notification
+      // If there are conflicts, return error with specific dates
+      if (conflictDates.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Room is already booked on the following dates: ${conflictDates.join(', ')}. Please choose different dates or times.`,
+          conflictDates
+        });
+      }
+
+      // Create all recurring bookings
+      const createdBookings = [];
+      for (const date of recurringDates) {
+        const bookingStart = combineDateAndTime(date, baseStartTime);
+        const bookingEnd = combineDateAndTime(date, baseEndTime);
+        
+        const booking = await Booking.create({
+          room,
+          bookedBy: req.user._id,
+          title,
+          description,
+          startTime: bookingStart,
+          endTime: bookingEnd,
+          attendees: attendees,
+          recurrenceGroup: recurrenceGroup._id
+        });
+        createdBookings.push(booking);
+      }
+
+      // Send notification to user
       await Notification.create({
         user: req.user._id,
         type: 'booking_created',
@@ -173,14 +198,30 @@ exports.createBooking = async (req, res, next) => {
         message: `Your recurring booking for ${title} has been created with ${createdBookings.length} occurrences.`,
         room
       });
+      
+      // Notify admins of user action (if user is not admin)
+      if (req.user.role !== 'admin') {
+        await NotificationService.notifyAdminsOfUserAction('booking_created', {
+          title: title,
+          roomName: roomExists.name,
+          bookingId: createdBookings[0]._id,
+          roomId: room
+        }, req.user);
+      }
+      
+      // Notify attendees about all recurring meetings
+      if (attendees && attendees.length > 0) {
+        for (const booking of createdBookings) {
+          await NotificationService.notifyAttendeesOfMeeting(booking, req.user);
+        }
+      }
 
       return res.status(201).json({
         success: true,
         message: 'Recurring booking created successfully',
         data: {
           recurrenceGroup,
-          createdBookings: createdBookings.length,
-          failedDates: failedDates.length
+          createdBookings: createdBookings.length
         }
       });
     }
@@ -193,12 +234,12 @@ exports.createBooking = async (req, res, next) => {
       description,
       startTime: new Date(startTime),
       endTime: new Date(endTime),
-      attendees: attendees || []
+      attendees: attendees
     });
 
     await booking.populate('room bookedBy attendees');
 
-    // Create notification
+    // Create notification for the user
     await Notification.create({
       user: req.user._id,
       type: 'booking_created',
@@ -207,6 +248,21 @@ exports.createBooking = async (req, res, next) => {
       booking: booking._id,
       room: booking.room._id
     });
+    
+    // Notify admins of user action (if user is not admin)
+    if (req.user.role !== 'admin') {
+      await NotificationService.notifyAdminsOfUserAction('booking_created', {
+        title: booking.title,
+        roomName: roomExists.name,
+        bookingId: booking._id,
+        roomId: booking.room._id
+      }, req.user);
+    }
+    
+    // Notify attendees about the meeting
+    if (attendees && attendees.length > 0) {
+      await NotificationService.notifyAttendeesOfMeeting(booking, req.user);
+    }
 
     // Send email notification (async, don't wait)
     if (process.env.EMAIL_USER) {
@@ -290,7 +346,7 @@ exports.updateBooking = async (req, res, next) => {
 // @access  Private
 exports.cancelBooking = async (req, res, next) => {
   try {
-    const booking = await Booking.findById(req.params.id).populate('room bookedBy');
+    const booking = await Booking.findById(req.params.id).populate('room bookedBy attendees');
 
     if (!booking) {
       return res.status(404).json({
@@ -312,26 +368,45 @@ exports.cancelBooking = async (req, res, next) => {
     booking.cancelledAt = Date.now();
     booking.cancellationReason = req.body.cancellationReason || req.body.reason || '';
     
-    await booking.save();
+    await booking.save({ validateBeforeSave: false });
 
-    // Create notification
-    await Notification.create({
-      user: booking.bookedBy._id,
-      type: req.user.role === 'admin' ? 'admin_override' : 'booking_cancelled',
-      title: 'Booking Cancelled',
-      message: `Your booking for ${booking.title} has been cancelled.`,
-      booking: booking._id,
-      room: booking.room._id
-    });
+    // Create notification for booking owner (with safety checks)
+    if (booking.bookedBy && booking.room) {
+      await Notification.create({
+        user: booking.bookedBy._id,
+        type: req.user.role === 'admin' ? 'admin_override' : 'booking_cancelled',
+        title: 'Booking Cancelled',
+        message: `Your booking for ${booking.title} has been cancelled.`,
+        booking: booking._id,
+        room: booking.room._id
+      });
+    }
+    
+    // Notify admins of user action (if user is not admin)
+    if (req.user.role !== 'admin' && booking.room) {
+      await NotificationService.notifyAdminsOfUserAction('booking_cancelled', {
+        title: booking.title,
+        roomName: booking.room.name,
+        bookingId: booking._id,
+        roomId: booking.room._id
+      }, req.user);
+    }
+    
+    // Notify attendees about meeting cancellation
+    if (booking.attendees && booking.attendees.length > 0) {
+      await NotificationService.notifyAttendeesOfMeetingUpdate(booking, req.user, 'cancelled');
+    }
 
     // Send email notification
-    if (process.env.EMAIL_USER) {
+    if (process.env.EMAIL_USER && booking.bookedBy && booking.room) {
       const user = await User.findById(booking.bookedBy._id);
-      sendEmail({
-        email: user.email,
-        subject: 'Booking Cancelled - Room Booking Lite',
-        html: bookingCancelledEmail(booking, booking.room, user)
-      }).catch(err => console.error('Email error:', err));
+      if (user) {
+        sendEmail({
+          email: user.email,
+          subject: 'Booking Cancelled - Room Booking Lite',
+          html: bookingCancelledEmail(booking, booking.room, user)
+        }).catch(err => console.error('Email error:', err));
+      }
     }
 
     res.status(200).json({
@@ -352,10 +427,7 @@ exports.getMyBookings = async (req, res, next) => {
     const { upcoming } = req.query;
     
     const query = {
-      $or: [
-        { bookedBy: req.user._id },
-        { attendees: req.user._id }
-      ]
+      bookedBy: req.user._id  // Only show bookings created by this user
     };
 
     if (upcoming === 'true') {
@@ -374,6 +446,41 @@ exports.getMyBookings = async (req, res, next) => {
       success: true,
       count: bookings.length,
       data: bookings
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Delete a booking (Admin only - for completed or cancelled bookings)
+exports.deleteBooking = async (req, res, next) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    // Only allow deletion of past/completed bookings or cancelled bookings
+    const now = new Date();
+    const isPastBooking = new Date(booking.endTime) < now;
+    const isCancelled = booking.status === 'cancelled';
+    
+    if (!isPastBooking && !isCancelled) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete active upcoming bookings. Please cancel them first.'
+      });
+    }
+
+    await booking.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      message: 'Booking deleted successfully'
     });
   } catch (error) {
     next(error);

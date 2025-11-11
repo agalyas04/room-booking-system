@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'; // React hooks
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import TimePicker from '../components/TimePicker';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -34,7 +35,7 @@ const RoomDetails = () => {
     endTime: '',
     attendees: [],
     isRecurring: false,
-    recurrenceEndDate: ''
+    numberOfWeeks: ''
   });
 
   useEffect(() => {
@@ -86,6 +87,7 @@ const RoomDetails = () => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
+    
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
@@ -103,12 +105,35 @@ const RoomDetails = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Prevent duplicate submissions
+    if (bookingLoading) {
+      return;
+    }
+    
     setBookingLoading(true);
     setMessage({ type: '', text: '' });
 
     // Client-side validation
     if (!formData.date || !formData.startTime || !formData.endTime) {
       setMessage({ type: 'error', text: 'Please fill in all required fields' });
+      setBookingLoading(false);
+      return;
+    }
+
+    // Validate attendees are selected
+    if (!formData.attendees || formData.attendees.length === 0) {
+      setMessage({ type: 'error', text: 'Please select at least one attendee' });
+      setBookingLoading(false);
+      return;
+    }
+
+    // Validate attendees count doesn't exceed room capacity
+    if (formData.attendees.length > room.capacity) {
+      setMessage({ 
+        type: 'error', 
+        text: `Too many attendees selected. Room capacity is ${room.capacity} people, but you selected ${formData.attendees.length} attendees.` 
+      });
       setBookingLoading(false);
       return;
     }
@@ -132,23 +157,33 @@ const RoomDetails = () => {
     }
 
     // Validate end time is after start time
+    // If end time appears to be before start time, assume it's next day
     if (endDateTime <= startDateTime) {
-      setMessage({ type: 'error', text: 'End time must be after start time' });
-      setBookingLoading(false);
-      return;
+      // Check if this could be an overnight booking
+      const [endHour] = formData.endTime.split(':').map(Number);
+      const [startHour] = formData.startTime.split(':').map(Number);
+      
+      // If end hour is less than start hour, it's likely next day
+      if (endHour < startHour) {
+        // Add one day to end time
+        endDateTime.setDate(endDateTime.getDate() + 1);
+      } else {
+        setMessage({ type: 'error', text: 'End time must be after start time' });
+        setBookingLoading(false);
+        return;
+      }
     }
 
-    // Validate recurring booking end date
+    // Validate recurring booking number of weeks
     if (formData.isRecurring) {
-      if (!formData.recurrenceEndDate) {
-        setMessage({ type: 'error', text: 'Please specify recurrence end date' });
+      if (!formData.numberOfWeeks || formData.numberOfWeeks < 1) {
+        setMessage({ type: 'error', text: 'Please specify number of weeks (minimum 1)' });
         setBookingLoading(false);
         return;
       }
       
-      const recurrenceEnd = new Date(formData.recurrenceEndDate);
-      if (recurrenceEnd <= new Date(formData.date)) {
-        setMessage({ type: 'error', text: 'Recurrence end date must be after the start date' });
+      if (formData.numberOfWeeks > 52) {
+        setMessage({ type: 'error', text: 'Number of weeks cannot exceed 52' });
         setBookingLoading(false);
         return;
       }
@@ -167,20 +202,16 @@ const RoomDetails = () => {
       // Add recurring booking fields if needed
       if (formData.isRecurring) {
         bookingData.isRecurring = true;
-        bookingData.recurrenceEndDate = formData.recurrenceEndDate;
+        // Calculate end date from number of weeks
+        const startDate = new Date(formData.date);
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + (parseInt(formData.numberOfWeeks) * 7));
+        bookingData.recurrenceEndDate = endDate.toISOString().split('T')[0];
       }
 
       const response = await api.post('/bookings', bookingData);
       
-      if (formData.isRecurring) {
-        const result = response.data.data;
-        setMessage({ 
-          type: 'success', 
-          text: `Created ${result.createdBookings} recurring booking(s). ${result.failedDates > 0 ? `${result.failedDates} booking(s) skipped due to conflicts.` : ''}`
-        });
-      } else {
-        setMessage({ type: 'success', text: 'Booking created successfully!' });
-      }
+      setMessage({ type: 'success', text: 'Booking created successfully!' });
 
       // Reset form
       setFormData({
@@ -191,7 +222,7 @@ const RoomDetails = () => {
         endTime: '',
         attendees: [],
         isRecurring: false,
-        recurrenceEndDate: ''
+        numberOfWeeks: ''
       });
 
       setTimeout(() => {
@@ -231,10 +262,32 @@ const RoomDetails = () => {
     
     // Use selected date from form, fallback to today if no date selected
     const selectedDate = formData.date || new Date().toISOString().split('T')[0];
+    const selectedDateObj = new Date(selectedDate + 'T00:00:00');
+    const selectedDayOfWeek = selectedDateObj.getDay();
     
     return room.bookings.filter(booking => {
+      // Check regular bookings - compare date strings directly
       const bookingDate = new Date(booking.startTime).toISOString().split('T')[0];
-      return bookingDate === selectedDate && booking.status === 'confirmed';
+      if (bookingDate === selectedDate && booking.status === 'confirmed') {
+        return true;
+      }
+      
+      // Check recurring bookings
+      if (booking.recurrenceGroup && booking.status === 'confirmed') {
+        const recurrence = booking.recurrenceGroup;
+        
+        // Use date strings for comparison to avoid timezone issues
+        const recurrenceStartDate = new Date(recurrence.startDate).toISOString().split('T')[0];
+        const recurrenceEndDate = new Date(recurrence.endDate).toISOString().split('T')[0];
+        
+        // Check if selected date falls within recurrence range and matches day of week
+        if (selectedDate >= recurrenceStartDate && selectedDate <= recurrenceEndDate && 
+            recurrence.dayOfWeek === selectedDayOfWeek) {
+          return true;
+        }
+      }
+      
+      return false;
     }).sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
   };
 
@@ -258,10 +311,10 @@ const RoomDetails = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-pink-50">
         <Navbar />
         <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-600"></div>
         </div>
       </div>
     );
@@ -269,7 +322,7 @@ const RoomDetails = () => {
 
   if (!room) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-pink-50">
         <Navbar />
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="text-center">
@@ -285,13 +338,13 @@ const RoomDetails = () => {
   const maxDate = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-pink-50">
       <Navbar />
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <button
             onClick={() => navigate('/rooms')}
-            className="mb-6 inline-flex items-center text-sm text-gray-600 hover:text-gray-900"
+            className="mb-6 inline-flex items-center text-sm text-pink-600 hover:text-pink-900"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Rooms
@@ -309,14 +362,14 @@ const RoomDetails = () => {
                   />
                 )}
                 <div className="p-6">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-4">{room.name}</h1>
+                  <h1 className="text-2xl font-bold text-pink-900 mb-4">{room.name}</h1>
                   
                   <div className="space-y-3 mb-6">
-                    <div className="flex items-center text-gray-600">
+                    <div className="flex items-center text-pink-600">
                       <MapPin className="h-5 w-5 mr-2" />
                       <span>{room.location} - Floor {room.floor}</span>
                     </div>
-                    <div className="flex items-center text-gray-600">
+                    <div className="flex items-center text-pink-600">
                       <Users className="h-5 w-5 mr-2" />
                       <span>Capacity: {room.capacity} people</span>
                     </div>
@@ -324,14 +377,14 @@ const RoomDetails = () => {
 
                   {room.description && (
                     <div className="mb-6">
-                      <h3 className="text-sm font-semibold text-gray-900 mb-2">Description</h3>
-                      <p className="text-sm text-gray-600">{room.description}</p>
+                      <h3 className="text-sm font-semibold text-pink-900 mb-2">Description</h3>
+                      <p className="text-sm text-pink-600">{room.description}</p>
                     </div>
                   )}
 
                   {room.amenities && room.amenities.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-900 mb-2">Amenities</h3>
+                      <h3 className="text-sm font-semibold text-pink-900 mb-2">Amenities</h3>
                       <div className="flex flex-wrap gap-2">
                         {room.amenities.map((amenity, index) => (
                           <span
@@ -347,17 +400,17 @@ const RoomDetails = () => {
 
                   {/* Selected Date Schedule */}
                   <div key={formData.date || 'today'} className="mt-6 pt-6 border-t">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-3">{getScheduleTitle()}</h3>
+                    <h3 className="text-sm font-semibold text-pink-900 mb-3">{getScheduleTitle()}</h3>
                     {selectedDateBookings.length === 0 ? (
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-pink-600">
                         {formData.date ? 'No bookings on selected date' : 'No bookings today'}
                       </p>
                     ) : (
                       <div className="space-y-2">
                         {selectedDateBookings.map((booking) => (
-                          <div key={booking._id} className="text-sm p-2 bg-gray-50 rounded">
-                            <div className="font-medium text-gray-900">{booking.title}</div>
-                            <div className="text-gray-600 flex items-center mt-1">
+                          <div key={booking._id} className="text-sm p-2 bg-pink-50 rounded">
+                            <div className="font-medium text-pink-900">{booking.title}</div>
+                            <div className="text-pink-600 flex items-center mt-1">
                               <Clock className="h-3 w-3 mr-1" />
                               {formatTime(new Date(booking.startTime).toTimeString().slice(0, 5))} - 
                               {formatTime(new Date(booking.endTime).toTimeString().slice(0, 5))}
@@ -374,7 +427,7 @@ const RoomDetails = () => {
             {/* Booking Form */}
             <div className="lg:col-span-2">
               <div className="bg-white shadow rounded-lg p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Book This Room</h2>
+                <h2 className="text-xl font-bold text-pink-900 mb-6">Book This Room</h2>
 
                 {message.text && (
                   <div className={`mb-6 p-4 rounded-md ${
@@ -393,7 +446,7 @@ const RoomDetails = () => {
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-pink-700 mb-2">
                       Meeting Title *
                     </label>
                     <input
@@ -408,7 +461,7 @@ const RoomDetails = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-pink-700 mb-2">
                       Description
                     </label>
                     <textarea
@@ -423,7 +476,7 @@ const RoomDetails = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-pink-700 mb-2">
                         Date *
                       </label>
                       <input
@@ -439,30 +492,26 @@ const RoomDetails = () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-pink-700 mb-2">
                         Start Time *
                       </label>
-                      <input
-                        type="time"
+                      <TimePicker
                         name="startTime"
-                        required
                         value={formData.startTime}
                         onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                        required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-pink-700 mb-2">
                         End Time *
                       </label>
-                      <input
-                        type="time"
+                      <TimePicker
                         name="endTime"
-                        required
                         value={formData.endTime}
                         onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                        required
                       />
                     </div>
                   </div>
@@ -475,25 +524,26 @@ const RoomDetails = () => {
                         id="isRecurring"
                         checked={formData.isRecurring}
                         onChange={handleInputChange}
-                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                        className="h-4 w-4 text-pink-600 focus:ring-primary-500 border-gray-300 rounded"
                       />
-                      <label htmlFor="isRecurring" className="ml-2 block text-sm text-gray-700">
+                      <label htmlFor="isRecurring" className="ml-2 block text-sm text-pink-700">
                         Recurring booking (Weekly)
                       </label>
                     </div>
 
                     {formData.isRecurring && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Recurrence End Date *
+                        <label className="block text-sm font-medium text-pink-700 mb-2">
+                          Number of Weeks *
                         </label>
                         <input
-                          type="date"
-                          name="recurrenceEndDate"
+                          type="number"
+                          name="numberOfWeeks"
                           required={formData.isRecurring}
-                          min={formData.date || minDate}
-                          max={maxDate}
-                          value={formData.recurrenceEndDate}
+                          min="1"
+                          max="52"
+                          placeholder="Enter number of weeks"
+                          value={formData.numberOfWeeks}
                           onChange={handleInputChange}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                         />
@@ -501,33 +551,37 @@ const RoomDetails = () => {
                     )}
                   </div>
 
+                  {/* Attendees section - required for all rooms */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Attendees (Optional)
+                    <label className="block text-sm font-medium text-pink-700 mb-2">
+                      Attendees <span className="text-red-600">*</span>
+                      <span className="text-sm text-gray-500 ml-2">
+                        ({formData.attendees.length}/{room?.capacity} selected)
+                      </span>
                     </label>
                     <div className="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-3 space-y-2">
                       {allUsers.length === 0 ? (
-                        <p className="text-sm text-gray-500">No other users available</p>
+                        <p className="text-sm text-pink-600">No other users available</p>
                       ) : (
                         allUsers.map((u) => (
-                          <label key={u._id} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
-                            <input
-                              type="checkbox"
-                              checked={formData.attendees.includes(u._id)}
-                              onChange={() => handleAttendeeToggle(u._id)}
-                              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                            />
-                            <img
-                              src={u.profilePicture || u.avatar}
-                              alt={u.name}
-                              className="h-8 w-8 rounded-full border border-gray-200"
-                            />
-                            <span className="text-sm text-gray-700 flex-1">
-                              <span className="font-medium">{u.name}</span>
-                              <span className="text-gray-500"> ({u.email})</span>
-                              {u.department && <span className="text-gray-500"> - {u.department}</span>}
-                            </span>
-                          </label>
+                        <label key={u._id} className="flex items-center space-x-3 cursor-pointer hover:bg-pink-50 p-2 rounded">
+                          <input
+                            type="checkbox"
+                            checked={formData.attendees.includes(u._id)}
+                            onChange={() => handleAttendeeToggle(u._id)}
+                            className="h-4 w-4 text-pink-600 focus:ring-primary-500 border-gray-300 rounded"
+                          />
+                          <img
+                            src={u.profilePicture || u.avatar}
+                            alt={u.name}
+                            className="h-8 w-8 rounded-full border border-pink-200"
+                          />
+                          <span className="text-sm text-pink-700 flex-1">
+                            <span className="font-medium">{u.name}</span>
+                            <span className="text-pink-600"> ({u.email})</span>
+                            {u.department && <span className="text-pink-600"> - {u.department}</span>}
+                          </span>
+                        </label>
                         ))
                       )}
                     </div>
@@ -537,14 +591,14 @@ const RoomDetails = () => {
                     <button
                       type="button"
                       onClick={() => navigate('/rooms')}
-                      className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-pink-700 hover:bg-pink-50"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={bookingLoading}
-                      className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {bookingLoading ? 'Creating...' : 'Create Booking'}
                     </button>

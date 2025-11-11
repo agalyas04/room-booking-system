@@ -5,8 +5,8 @@ const crypto = require('crypto');
 // Function to generate avatar URL using DiceBear API
 const generateAvatar = (name, email) => {
   const seed = email || name;
-  // Using initials style for professional avatars
-  return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundColor=6366f1,8b5cf6,ec4899,f59e0b,10b981`;
+  // Using initials style with pink theme colors
+  return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundColor=ec4899,db2777,be185d,9f1239,831843`;
 };
 
 const userSchema = new mongoose.Schema({

@@ -10,14 +10,6 @@ export const createRoom = async (roomData) => {
   }
 };
 
-export const updateRoom = async (roomId, roomData) => {
-  try {
-    const response = await api.put(`/rooms/${roomId}`, roomData);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
 
 export const deleteRoom = async (roomId) => {
   try {

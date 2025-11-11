@@ -35,7 +35,7 @@ class NotificationService {
             break;
           case 'user_registered':
             title = 'New User Registration';
-            message = `${performedBy.name} (${performedBy.email}) has registered and needs approval`;
+            message = `${performedBy.name} (${performedBy.email}) has registered`;
             break;
           default:
             title = 'User Activity';
@@ -80,7 +80,7 @@ class NotificationService {
           user: attendeeId,
           type: 'meeting_scheduled',
           title: 'Meeting Invitation',
-          message: `You have been invited to "${booking.title}" by ${organizer.name}. Meeting scheduled for ${new Date(booking.startTime).toLocaleString()}`,
+          message: `You have been invited to "${booking.title}" by ${organizer.name}. Meeting scheduled for ${new Date(booking.startTime).toLocaleString()} in ${booking.room.name}`,
           booking: booking._id,
           room: booking.room
         });

@@ -26,8 +26,8 @@ const corsOptions = {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    // In development, allow any localhost port
-    if (process.env.NODE_ENV === 'development' && origin.startsWith('http://localhost:')) {
+    // Allow any localhost port in development
+    if (origin && origin.startsWith('http://localhost:')) {
       return callback(null, true);
     }
     

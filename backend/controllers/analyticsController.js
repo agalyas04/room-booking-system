@@ -9,25 +9,40 @@ const moment = require('moment');
 // @access  Private/Admin
 exports.getAnalytics = async (req, res, next) => {
   try {
-    const { range = 'week' } = req.query;
+    const { startDate, endDate, range = 'week' } = req.query;
     
     let start, end;
-    switch (range) {
-      case 'week':
-        start = moment().startOf('week').toDate();
-        end = moment().endOf('week').toDate();
-        break;
-      case 'month':
-        start = moment().startOf('month').toDate();
-        end = moment().endOf('month').toDate();
-        break;
-      case 'year':
-        start = moment().startOf('year').toDate();
-        end = moment().endOf('year').toDate();
-        break;
-      default:
-        start = moment().startOf('week').toDate();
-        end = moment().endOf('week').toDate();
+    
+    // Use provided date range if available, otherwise fall back to range
+    if (startDate && endDate) {
+      start = new Date(startDate);
+      end = new Date(endDate);
+      // Set end date to end of day
+      end.setHours(23, 59, 59, 999);
+    } else {
+      switch (range) {
+        case 'week':
+          start = moment().startOf('week').toDate();
+          end = moment().endOf('week').toDate();
+          break;
+        case 'month':
+          start = moment().startOf('month').toDate();
+          end = moment().endOf('month').toDate();
+          break;
+        case 'year':
+          start = moment().startOf('year').toDate();
+          end = moment().endOf('year').toDate();
+          break;
+        case 'all':
+          // Get all bookings - set a very wide range
+          start = moment().subtract(1, 'year').toDate();
+          end = moment().add(1, 'year').toDate();
+          break;
+        default:
+          // Default to ALL bookings instead of just current week
+          start = moment().subtract(1, 'year').toDate();
+          end = moment().add(1, 'year').toDate();
+      }
     }
 
     // Get total rooms
@@ -47,11 +62,18 @@ exports.getAnalytics = async (req, res, next) => {
       status: 'confirmed'
     });
 
+    // Also get ALL bookings count for comparison
+    const allBookingsCount = await Booking.countDocuments({ status: 'confirmed' });
+    
+
     // Calculate overall utilization rate
     const rooms = await Room.find({ isActive: true });
     let totalUtilization = 0;
     const roomUtilization = [];
+    const totalRoomsCount = rooms.length;
 
+    // First pass: collect all room booking data
+    const roomBookingData = [];
     for (const room of rooms) {
       const bookings = await Booking.find({
         room: room._id,
@@ -69,11 +91,22 @@ exports.getAnalytics = async (req, res, next) => {
         Math.round((totalBookedMinutes / totalAvailableMinutes) * 100) : 0;
 
       totalUtilization += utilization;
-      roomUtilization.push({
-        name: room.name,
-        utilization: utilization
+      
+      roomBookingData.push({
+        room,
+        bookingCount: bookings.length,
+        utilization
       });
     }
+
+    // Add room utilization data
+    roomBookingData.forEach(data => {
+      roomUtilization.push({
+        roomName: data.room.name,
+        utilizationRate: data.utilization,
+        totalBookings: data.bookingCount
+      });
+    });
 
     const utilizationRate = rooms.length > 0 ? Math.round(totalUtilization / rooms.length) : 0;
 
@@ -115,14 +148,22 @@ exports.getAnalytics = async (req, res, next) => {
       const dayStart = moment().startOf('week').add(i, 'days').toDate();
       const dayEnd = moment().startOf('week').add(i, 'days').endOf('day').toDate();
       
-      const dayBookings = await Booking.countDocuments({
+      // Get all bookings for this day
+      const dayBookings = await Booking.find({
         startTime: { $gte: dayStart, $lte: dayEnd },
         status: 'confirmed'
       });
       
-      const maxPossibleBookings = totalRooms * 10; // 10 possible slots per room per day
-      const dayUtilization = maxPossibleBookings > 0 ? 
-        Math.round((dayBookings / maxPossibleBookings) * 100) : 0;
+      // Calculate total booked minutes for the day
+      const totalBookedMinutes = dayBookings.reduce((sum, booking) => {
+        return sum + (booking.endTime - booking.startTime) / 60000;
+      }, 0);
+      
+      // Total available minutes for all rooms (10 hours per day per room)
+      const totalAvailableMinutes = totalRooms * 10 * 60;
+      
+      const dayUtilization = totalAvailableMinutes > 0 ? 
+        Math.round((totalBookedMinutes / totalAvailableMinutes) * 100) : 0;
       
       weeklyUtilization.push({
         day: weekDays[i],
@@ -130,59 +171,73 @@ exports.getAnalytics = async (req, res, next) => {
       });
     }
 
-    // Popular time slots
-    const timeSlotData = await Booking.aggregate([
-      {
-        $match: {
-          startTime: { $gte: start, $lte: end },
-          status: 'confirmed'
-        }
-      },
-      {
-        $project: {
-          hour: { $hour: '$startTime' }
-        }
-      },
-      {
-        $group: {
-          _id: '$hour',
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $sort: { count: -1 }
-      },
-      {
-        $limit: 4
-      }
-    ]);
-
-    const popularTimeSlots = timeSlotData.map(slot => ({
-      time: `${slot._id}:00 - ${slot._id + 1}:00`,
-      bookings: slot.count
-    }));
-
-    // Booking frequency by type
-    const recurringBookings = await Booking.countDocuments({
+    // Popular time slots - Use same date range as other analytics
+    const bookingsForTimeSlots = await Booking.find({
       startTime: { $gte: start, $lte: end },
-      status: 'confirmed',
-      recurrenceGroup: { $exists: true }
+      status: 'confirmed'
+    }).select('startTime endTime title');
+
+
+    // Group bookings by hour
+    const hourCounts = {};
+    bookingsForTimeSlots.forEach(booking => {
+      const date = new Date(booking.startTime);
+      const hour = date.getHours(); // This gets local hour
+      hourCounts[hour] = (hourCounts[hour] || 0) + 1;
     });
 
-    const singleBookings = totalBookings - recurringBookings;
+
+    // Convert to array and sort by count - show top 2
+    const timeSlotData = Object.entries(hourCounts)
+      .map(([hour, count]) => ({ _id: parseInt(hour), count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 2);
+
+    
+    const popularTimeSlots = timeSlotData.map(slot => {
+      // Convert 24-hour to 12-hour format
+      const hour = slot._id;
+      const nextHour = (hour + 1) % 24;
+      const formatHour = (h) => {
+        const period = h >= 12 ? 'PM' : 'AM';
+        const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+        return `${displayHour}:00 ${period}`;
+      };
+      
+      return {
+        timeSlot: `${formatHour(hour)} - ${formatHour(nextHour)}`,
+        count: slot.count
+      };
+    });
+
+
+    // Booking frequency by type
+    // Fetch all bookings and populate recurrenceGroup
+    const allBookingsInRange = await Booking.find({
+      startTime: { $gte: start, $lte: end },
+      status: 'confirmed'
+    }).select('recurrenceGroup title startTime').populate('recurrenceGroup');
+
+    // Count recurring bookings (those with a recurrenceGroup)
+    const recurringBookings = allBookingsInRange.filter(b => {
+      return b.recurrenceGroup != null && b.recurrenceGroup !== undefined;
+    }).length;
+    const singleBookings = allBookingsInRange.length - recurringBookings;
+    
     
     const bookingFrequency = [
       {
         type: 'Single Bookings',
         count: singleBookings,
-        percentage: totalBookings > 0 ? Math.round((singleBookings / totalBookings) * 100) : 0
+        percentage: allBookingsInRange.length > 0 ? Math.round((singleBookings / allBookingsInRange.length) * 100) : 0
       },
       {
         type: 'Recurring Bookings',
         count: recurringBookings,
-        percentage: totalBookings > 0 ? Math.round((recurringBookings / totalBookings) * 100) : 0
+        percentage: allBookingsInRange.length > 0 ? Math.round((recurringBookings / allBookingsInRange.length) * 100) : 0
       }
     ];
+
 
     res.status(200).json({
       success: true,
@@ -193,7 +248,7 @@ exports.getAnalytics = async (req, res, next) => {
         totalBookings,
         peakUsage,
         weeklyUtilization,
-        roomUtilization: roomUtilization.sort((a, b) => b.utilization - a.utilization),
+        roomUtilization: roomUtilization.sort((a, b) => b.utilizationRate - a.utilizationRate),
         popularTimeSlots,
         bookingFrequency
       }
@@ -339,9 +394,9 @@ exports.getAllAnalytics = async (req, res, next) => {
           : 0;
 
         return {
-          name: room.name,
+          roomName: room.name,
           location: room.location,
-          bookingCount: bookings.length,
+          totalBookings: bookings.length,
           totalHours: parseFloat((totalBookedMinutes / 60).toFixed(2)),
           utilizationRate
         };
@@ -406,7 +461,7 @@ exports.getAllAnalytics = async (req, res, next) => {
         bookingsByStatus,
         mostPopularRooms,
         peakHours,
-        roomUtilization,
+        roomUtilization: roomUtilization.sort((a, b) => b.utilizationRate - a.utilizationRate),
         topUsers
       }
     });

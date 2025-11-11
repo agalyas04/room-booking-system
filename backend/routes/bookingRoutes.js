@@ -7,9 +7,10 @@ const {
   createBooking,
   updateBooking,
   cancelBooking,
-  getMyBookings
+  getMyBookings,
+  deleteBooking
 } = require('../controllers/bookingController');
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
 
 // Validation rules
@@ -18,6 +19,18 @@ const bookingValidation = [
   body('title').trim().notEmpty().withMessage('Title is required'),
   body('startTime').isISO8601().withMessage('Valid start time is required'),
   body('endTime').isISO8601().withMessage('Valid end time is required'),
+  body('attendees')
+    .isArray({ min: 1 })
+    .withMessage('At least one attendee is required')
+    .custom((attendees) => {
+      if (!attendees || attendees.length === 0) {
+        throw new Error('At least one attendee is required');
+      }
+      if (attendees.length > 50) { // Reasonable upper limit
+        throw new Error('Too many attendees selected');
+      }
+      return true;
+    }),
   body('endTime').custom((value, { req }) => {
     if (new Date(value) <= new Date(req.body.startTime)) {
       throw new Error('End time must be after start time');
@@ -39,5 +52,7 @@ router.route('/:id' )
   .put(protect, updateBooking);
 
 router.patch('/:id/cancel', protect, cancelBooking);
+
+router.delete('/:id', protect, authorize('admin'), deleteBooking);
 
 module.exports = router;

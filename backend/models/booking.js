@@ -28,10 +28,19 @@ const bookingSchema = new mongoose.Schema({
     type: Date,
     required: [true, 'Please provide an end time']
   },
-  attendees: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  }],
+  attendees: {
+    type: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }],
+    required: [true, 'Please provide at least one attendee'],
+    validate: {
+      validator: function(attendees) {
+        return attendees && attendees.length > 0;
+      },
+      message: 'At least one attendee is required for the booking'
+    }
+  },
   recurrenceGroup: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'RecurrenceGroup',
