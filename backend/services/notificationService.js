@@ -82,7 +82,7 @@ class NotificationService {
           title: 'Meeting Invitation',
           message: `You have been invited to "${booking.title}" by ${organizer.name}. Meeting scheduled for ${new Date(booking.startTime).toLocaleString()} in ${booking.room.name}`,
           booking: booking._id,
-          room: booking.room
+          room: booking.room._id // Store only the room ID, not the entire object
         });
       }
       

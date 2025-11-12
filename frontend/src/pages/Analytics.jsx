@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Navbar from '../components/Navbar';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -8,21 +8,75 @@ const Analytics = () => {
   const { isAdmin } = useAuth();
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState('week');
+  const eventSourceRef = useRef(null);
 
   useEffect(() => {
+    // Initial fetch
     fetchAnalytics();
-  }, []);
+
+    // Setup SSE connection for real-time updates
+    setupSSEConnection();
+
+    // Cleanup on unmount
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        console.log('SSE connection closed');
+      }
+    };
+  }, [range]);
+
+  const setupSSEConnection = () => {
+    // Close existing connection if any
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    try {
+      // Get auth token
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      // Create SSE connection with auth token in URL
+      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/analytics/stream?range=${range}`;
+      
+      // EventSource doesn't support custom headers, so we'll use a fallback polling approach
+      // For production, consider using WebSockets or a library that supports auth headers with SSE
+      
+      // For now, use polling with short intervals for real-time feel
+      const pollInterval = setInterval(async () => {
+        try {
+          const response = await api.get(`/analytics?range=${range}`);
+          setAnalytics(response.data.data);
+        } catch (error) {
+          console.error('Error polling analytics:', error);
+        }
+      }, 5000); // Poll every 5 seconds
+
+      // Store interval ID for cleanup
+      eventSourceRef.current = { close: () => clearInterval(pollInterval) };
+      
+      console.log('Real-time analytics polling started');
+    } catch (error) {
+      console.error('Error setting up real-time updates:', error);
+    }
+  };
 
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/analytics');
+      const response = await api.get(`/analytics?range=${range}`);
       setAnalytics(response.data.data);
     } catch (error) {
       console.error('Error fetching analytics:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRangeChange = (newRange) => {
+    setRange(newRange);
   };
 
   if (!isAdmin()) {
@@ -56,26 +110,41 @@ const Analytics = () => {
       
       {/* Hero Section */}
       <div className="bg-white border-b border-pink-100">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-16 text-center">
-          <h1 className="text-5xl md:text-6xl font-light text-pink-900 mb-4 tracking-tight">
-            analytics
-          </h1>
-          <p className="text-xl text-pink-600 font-light">
-            insights and metrics
-          </p>
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-16">
+          <div className="text-center mb-8">
+            <h1 className="text-5xl md:text-6xl font-light text-pink-900 mb-4 tracking-tight">
+              analytics
+            </h1>
+            <p className="text-xl text-pink-600 font-light">
+              insights and metrics
+            </p>
+          </div>
+          
+          {/* Time Range Selector */}
+          <div className="flex justify-center gap-2">
+            {['week', 'month', 'year'].map((r) => (
+              <button
+                key={r}
+                onClick={() => handleRangeChange(r)}
+                className={`px-6 py-2 rounded-lg font-medium transition-all ${
+                  range === r
+                    ? 'bg-pink-600 text-white shadow-md'
+                    : 'bg-pink-50 text-pink-600 hover:bg-pink-100'
+                }`}
+              >
+                {r.charAt(0).toUpperCase() + r.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-16">
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
+        {/* Key Metrics - FIXED: Removed "active bookings" box */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
           <div className="bg-white shadow-sm border border-pink-100 p-8">
             <p className="text-sm text-pink-600 mb-2">total rooms</p>
             <p className="text-4xl font-light text-pink-900">{analytics?.totalRooms || 0}</p>
-          </div>
-          <div className="bg-white shadow-sm border border-pink-100 p-8">
-            <p className="text-sm text-pink-600 mb-2">active bookings</p>
-            <p className="text-4xl font-light text-pink-900">{analytics?.activeBookings || 0}</p>
           </div>
           <div className="bg-white shadow-sm border border-pink-100 p-8">
             <p className="text-sm text-pink-600 mb-2">utilization rate</p>
@@ -158,40 +227,46 @@ const Analytics = () => {
         {/* Popular Time Slots & Booking Frequency Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-16">
 
-          {/* Popular Time Slots */}
-          {analytics?.popularTimeSlots && analytics.popularTimeSlots.length > 0 && (
-            <div className="bg-white shadow-sm border border-pink-100 rounded-lg p-8">
-              <div className="flex items-center gap-2 mb-6">
-                <svg className="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <h3 className="text-lg font-semibold text-gray-900">Popular Time Slots</h3>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {analytics.popularTimeSlots.slice(0, 4).map((slot, index) => {
+          {/* Popular Time Slots - FIXED: Show exactly top 2 with proper no-data handling */}
+          <div className="bg-white shadow-sm border border-pink-100 rounded-lg p-8">
+            <div className="flex items-center gap-2 mb-6">
+              <svg className="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <h3 className="text-lg font-semibold text-gray-900">Popular Time Slots</h3>
+            </div>
+            
+            {analytics?.popularTimeSlots && analytics.popularTimeSlots.length > 0 ? (
+              <div className="space-y-4">
+                {analytics.popularTimeSlots.map((slot, index) => {
                   const colors = [
-                    { bg: 'bg-red-500', text: 'text-red-500' },
-                    { bg: 'bg-orange-500', text: 'text-orange-500' },
-                    { bg: 'bg-green-500', text: 'text-green-500' },
-                    { bg: 'bg-blue-500', text: 'text-blue-500' }
+                    { bg: 'bg-pink-500', text: 'text-pink-500', border: 'border-pink-200' },
+                    { bg: 'bg-purple-500', text: 'text-purple-500', border: 'border-purple-200' }
                   ];
-                  const color = colors[index] || colors[3];
+                  const color = colors[index] || colors[0];
                   
                   return (
-                    <div key={index} className="flex items-center gap-3">
-                      <div className={`${color.bg} rounded-full w-12 h-12 flex items-center justify-center text-white font-bold`}>
+                    <div key={index} className={`flex items-center gap-4 p-4 border ${color.border} rounded-lg bg-gray-50`}>
+                      <div className={`${color.bg} rounded-full w-14 h-14 flex items-center justify-center text-white font-bold text-lg shadow-md`}>
                         #{index + 1}
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-semibold text-gray-900">{slot.timeSlot}</p>
-                        <p className="text-xs text-gray-500">{slot.count} bookings</p>
+                        <p className="text-base font-semibold text-gray-900">{slot.timeSlot}</p>
+                        <p className="text-sm text-gray-600">{slot.count} {slot.count === 1 ? 'booking' : 'bookings'}</p>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="text-center py-8">
+                <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-gray-500 text-sm">No booking data available for the selected period</p>
+              </div>
+            )}
+          </div>
 
           {/* Booking Frequency */}
           {analytics?.bookingFrequency && analytics.bookingFrequency.length > 0 && (

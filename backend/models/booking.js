@@ -72,9 +72,15 @@ const bookingSchema = new mongoose.Schema({
 });
 
 // Indexes for better query performance
+// FIXED: Added compound indexes for analytics queries
 bookingSchema.index({ room: 1, startTime: 1, endTime: 1 });
 bookingSchema.index({ bookedBy: 1 });
 bookingSchema.index({ status: 1 });
+// Compound index for date range + status filtering (critical for analytics)
+bookingSchema.index({ startTime: 1, status: 1 });
+bookingSchema.index({ endTime: 1, status: 1 });
+// Compound index for room + date + status (most common analytics query pattern)
+bookingSchema.index({ room: 1, startTime: 1, status: 1 });
 
 // Validate that end time is after start time
 bookingSchema.pre('save', function(next) {

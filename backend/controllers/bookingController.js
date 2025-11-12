@@ -6,6 +6,7 @@ const Notification = require('../models/Notification');
 const NotificationService = require('../services/notificationService');
 const { checkOverlap, checkOverlapWithRecurring, generateRecurringDates, combineDateAndTime } = require('../utils/bookingHelper');
 const { sendEmail, bookingCreatedEmail, bookingCancelledEmail } = require('../utils/emailService');
+const { debouncedBroadcast } = require('./analyticsSSEController');
 
 
 exports.getBookings = async (req, res, next) => {
@@ -187,6 +188,9 @@ exports.createBooking = async (req, res, next) => {
           attendees: attendees,
           recurrenceGroup: recurrenceGroup._id
         });
+        
+        // Populate room details for notifications
+        await booking.populate('room bookedBy attendees');
         createdBookings.push(booking);
       }
 
@@ -215,6 +219,9 @@ exports.createBooking = async (req, res, next) => {
           await NotificationService.notifyAttendeesOfMeeting(booking, req.user);
         }
       }
+
+      // Broadcast analytics update to connected clients
+      debouncedBroadcast();
 
       return res.status(201).json({
         success: true,
@@ -273,6 +280,9 @@ exports.createBooking = async (req, res, next) => {
       }).catch(err => console.error('Email error:', err));
     }
 
+    // Broadcast analytics update to connected clients
+    debouncedBroadcast();
+
     res.status(201).json({
       success: true,
       message: 'Booking created successfully',
@@ -330,6 +340,9 @@ exports.updateBooking = async (req, res, next) => {
         runValidators: true
       }
     ).populate('room bookedBy attendees');
+
+    // Broadcast analytics update to connected clients
+    debouncedBroadcast();
 
     res.status(200).json({
       success: true,
@@ -409,6 +422,9 @@ exports.cancelBooking = async (req, res, next) => {
       }
     }
 
+    // Broadcast analytics update to connected clients
+    debouncedBroadcast();
+
     res.status(200).json({
       success: true,
       message: 'Booking cancelled successfully',
@@ -477,6 +493,9 @@ exports.deleteBooking = async (req, res, next) => {
     }
 
     await booking.deleteOne();
+
+    // Broadcast analytics update to connected clients
+    debouncedBroadcast();
 
     res.status(200).json({
       success: true,

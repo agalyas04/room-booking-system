@@ -105,15 +105,11 @@ const AdminAnalytics = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-16">
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
+        {/* Key Metrics - FIXED: Removed "active bookings" card */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
           <div className="bg-white shadow-sm border border-pink-100 p-8">
             <p className="text-sm text-pink-600 mb-2">total rooms</p>
             <p className="text-4xl font-light text-pink-900">{analytics?.totalRooms || 0}</p>
-          </div>
-          <div className="bg-white shadow-sm border border-pink-100 p-8">
-            <p className="text-sm text-pink-600 mb-2">active bookings</p>
-            <p className="text-4xl font-light text-pink-900">{analytics?.activeBookings || 0}</p>
           </div>
           <div className="bg-white shadow-sm border border-pink-100 p-8">
             <p className="text-sm text-pink-600 mb-2">utilization rate</p>
